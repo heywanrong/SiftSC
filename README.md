@@ -2,196 +2,164 @@
 
 # SiftSC
 
-### Stop voting on every prompt.
+### Think once. Vote only when it helps.
 
-**Selective self-consistency for small, local language models.**<br>
-Run one deterministic answer, inspect its uncertainty, and spend extra inference only when a tiny gate says it may help.
+Selective self-consistency for small, local language models. No API key. No fine-tuning. No cloud inference.
 
 [![CI](https://github.com/heywanrong/SiftSC/actions/workflows/ci.yml/badge.svg)](https://github.com/heywanrong/SiftSC/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-3776AB)](https://www.python.org/)
-[![MLX](https://img.shields.io/badge/MLX-Apple%20Silicon-111827)](https://github.com/ml-explore/mlx)
-[![License](https://img.shields.io/badge/license-Apache--2.0-0f766e)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/)
+[![Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-7c3aed)](LICENSE)
 
-![SiftSC routes a prompt after one greedy pass](docs/assets/architecture.svg)
+<a href="#run-it-now"><img alt="Run the live demo" src="https://img.shields.io/badge/%E2%96%B6_RUN_THE_LIVE_DEMO-111827?style=for-the-badge"></a>
+&nbsp;
+<a href="#chat-with-the-model"><img alt="Start local chat" src="https://img.shields.io/badge/START_LOCAL_CHAT-0891b2?style=for-the-badge"></a>
+
+![SiftSC keeps most prompts at one pass while retaining self-consistency accuracy](docs/assets/hero.svg)
 
 </div>
 
-Self-consistency (SC) normally samples several reasoning traces for every prompt and plurality-votes. Our ICONIP 2026 study found that this default can waste compute—and sometimes lower accuracy—on models at or below 1B parameters. **SiftSC turns that finding into a usable tool:** a model-local gate decides after the first pass whether to keep the greedy answer or draw the remaining SC samples.
+Small models do not need five opinions for every question. SiftSC first asks for one answer, then uses a tiny router to decide whether that answer should stand or whether five independent reasoning traces should vote.
+
+## Run it now
+
+On an Apple-Silicon Mac with Python 3.11+, one command installs SiftSC, downloads the public 4-bit model from Hugging Face, and runs a verified comparison:
+
+```bash
+python -m pip install "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
+```
+
+The first run downloads [`mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/tree/a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3) (about 290 MB). SiftSC pins the tested model revision and caches it for every run after that.
+
+### One model. One question. Two outcomes.
+
+```text
+Question  Henry made two stops during his 60-mile bike trip. He first
+          stopped after 20 miles. His second stop was 15 miles before
+          the end. How far did he travel between the two stops?
+
+PLAIN    15  ✗   (1 deterministic pass)
+SIFTSC   25  ✓   (votes: 20 · 15 · 25 · 25 · 30)
+```
+
+The second stop is at mile `60 - 15 = 45`, so the distance between the stops is `45 - 20 = 25`. Plain inference latches onto the “15 miles” distractor; independent traces recover the two-step calculation and `25` wins the vote.
+
+This output was generated on the public Hugging Face model with `mlx-lm 0.31.3`; it is not a mocked transcript. `siftsc demo` pins the question, decoding seed, and demo routing threshold, then exits with an error if “plain wrong, SiftSC right” no longer reproduces.
+
+<sub>Demo question from the [GSM8K test set](https://github.com/openai/grade-school-math), released under the MIT License.</sub>
+
+## Chat with the model
+
+```bash
+siftsc chat
+```
+
+SiftSC loads the same cached model and lets you choose the experience:
+
+```text
+Choose how the model should answer:
+  1  plain   one deterministic answer
+  2  siftsc  vote only when the router escalates
+mode [2]>
+```
+
+Switch at any time without restarting the model:
+
+```text
+/plain     use ordinary one-pass inference
+/siftsc    turn selective voting back on
+/clear     clear the terminal
+/exit      leave the session
+```
+
+You can also select a mode before launch:
+
+```bash
+siftsc chat --mode plain
+siftsc chat --mode siftsc
+```
+
+Each chat turn is treated as an independent reasoning question because the bundled router was calibrated on math reasoning, not open-ended conversation history.
+
+## The difference, in two numbers
+
+| On Qwen2.5-0.5B MLX 4-bit | Always run SC@5 | Use SiftSC |
+|---|---:|---:|
+| Prompt handling | 5 samples on every prompt | **1 pass on 99.3%** |
+| Accuracy relative to always-SC | 100% reference | **98.7% retained** |
+
+These are measured point estimates from 400 pooled GSM8K and MATH-500 prompts. The threshold was selected out-of-fold; it was not chosen on the demo question. Full confidence intervals, per-model results, checksums, and caveats remain available in [the benchmark report](docs/benchmarks/RESULTS.md), away from the quick-start path.
+
+## How SiftSC works
+
+```text
+prompt → one deterministic draft → lightweight router
+                                      ├─ accept the draft
+                                      └─ sample 5 traces → parse → vote
+```
+
+The router reads statistics already produced during the first answer plus a few cheap prompt features. It does not call another language model. When the route stays greedy, the request ends after one model pass; when it escalates, the final answer comes only from five fresh sampled traces, matching the paper's SC@5 protocol.
+
+Ask one question directly:
+
+```bash
+siftsc ask "If 3 notebooks cost £4 each, what is the total?"
+siftsc ask "If 3 notebooks cost £4 each, what is the total?" --mode plain
+```
+
+Use any compatible local MLX directory instead of the default Hugging Face model:
+
+```bash
+siftsc chat --model /absolute/path/to/model
+```
+
+<details>
+<summary><strong>Python API</strong></summary>
 
 ```python
 from siftsc import MLXBackend, SiftSC, load_profile, math_prompt
 
+question = "A shop sold 18 books on Monday and twice as many on Tuesday. Total?"
 router = SiftSC(
-    backend=MLXBackend("./models/mlx/qwen05b-q4"),
+    backend=MLXBackend("mlx-community/Qwen2.5-0.5B-Instruct-4bit"),
     gate=load_profile("qwen05b-q4-confidence"),
     samples=5,
 )
-
-question = "A shop sold 18 books on Monday and twice as many on Tuesday. Total?"
 result = router(math_prompt(question), feature_text=question)
 
-print(result.text)
+print(result.parsed_answer)
 print(result.used_self_consistency, result.generation_passes)
+print(result.vote_counts)
 ```
 
-The return value exposes the route, gate score, threshold, all extracted features, every generated trace, vote counts, and total generation passes. No hidden cloud calls, auxiliary verifier, or fine-tuning are required.
+`SiftResult` preserves the route, every generation, parsed answers, vote counts, and the actual number of model passes for auditing.
 
-## Why selective SC?
+</details>
 
-Across 1,600 prompt-level observations from Qwen-2.5-0.5B-Instruct and Gemma-3-1B-it in FP16 and MLX-Q4, SC@5 changed answers in both directions. Blue is the fraction it repaired; orange is the fraction it broke.
+<details>
+<summary><strong>Research scope and honest limitations</strong></summary>
 
-![Measured help and harm rates across eight model-task cells](docs/assets/help-harm.png)
+- The published evidence covers SC@5, Qwen-0.5B and Gemma-1B, FP16 and MLX 4-bit, two math benchmarks, and one generation seed per cell.
+- The headline result uses the paper's exact Qwen MLX-Q4 checkpoint and prompt distribution. The downloadable community conversion is provided for immediate experience, not as a claim that the published threshold transfers perfectly to every conversion.
+- The demo uses a documented, slightly more permissive routing threshold so both the paper checkpoint and public conversion reproduce the same correction. It demonstrates the mechanism; it is not an aggregate benchmark.
+- Escalation performs one routing draft plus five voter samples. The paper's normalized operating-point cost compares the selected SC@5 route with always-SC@5; the CLI reports actual model passes.
+- Recalibrate before changing the model, task distribution, prompt template, decoding settings, or risk tolerance. SiftSC is not a correctness verifier and should not be the sole decision-maker in high-stakes systems.
 
-| Model | Dataset | Greedy | SC@5 | SC helps | SC hurts | Net gain |
-|---|---:|---:|---:|---:|---:|---:|
-| Qwen-0.5B FP16 | GSM8K | 39.0% | 40.5% | 12.0% | 10.5% | +1.5 pt |
-| Qwen-0.5B Q4 | GSM8K | 20.5% | 24.5% | 12.5% | 8.5% | +4.0 pt |
-| Gemma-1B FP16 | GSM8K | 37.5% | 44.5% | 11.0% | 4.0% | +7.0 pt |
-| Gemma-1B Q4 | GSM8K | 15.0% | 17.5% | 7.0% | 4.5% | +2.5 pt |
-| Qwen-0.5B FP16 | MATH-500 | 18.0% | 19.5% | 6.0% | 4.5% | +1.5 pt |
-| **Qwen-0.5B Q4** | **MATH-500** | **12.5%** | **9.5%** | **4.0%** | **7.0%** | **−3.0 pt** |
-| Gemma-1B FP16 | MATH-500 | 22.5% | 28.0% | 9.0% | 3.5% | +5.5 pt |
-| Gemma-1B Q4 | MATH-500 | 10.0% | 12.0% | 5.0% | 3.0% | +2.0 pt |
+See [benchmark details](docs/benchmarks/RESULTS.md), [ethics review](docs/ETHICS_REVIEW.md), and [profile provenance](docs/benchmarks/profile_manifest.json).
 
-Each row contains 200 prompts and one generation seed. Source-level checksums are in [`docs/benchmarks/per_task.csv`](docs/benchmarks/per_task.csv). These are the paper's measured results, not synthetic examples.
+</details>
 
-## Measured operating points
-
-The bundled profiles reproduce the paper's selected pooled operating points (400 prompts per model/precision, 1,000 paired bootstrap resamples). A cost of 1 is one greedy generation; always-SC@5 costs 5.
-
-![Measured pooled SiftSC operating points](docs/assets/pooled-operating-points.png)
-
-| Profile | Gate | SC calls skipped (95% CI) | Cost | Accuracy retention* |
-|---|---|---:|---:|---:|
-| Qwen-0.5B FP16 | logistic | 86.0% [82.5, 89.3] | 1.56× | 98.1% |
-| Qwen-0.5B Q4 | confidence | 99.3% [98.5, 100.0] | 1.03× | 98.7% |
-| Gemma-1B FP16 | logistic | 44.7% [40.0, 49.5] | 3.21× | 98.8% |
-| Gemma-1B Q4 | logistic | 57.9% [53.2, 62.7] | 2.68× | 98.5% |
-
-\* Accuracy retention values are point estimates relative to always-SC. Their bootstrap intervals are wide because SC accuracy is only 15–36% in these small-model cells; see [`docs/benchmarks/RESULTS.md`](docs/benchmarks/RESULTS.md) for the intervals and interpretation. Thresholds were selected on the same out-of-fold pool, so treat them as research profiles and recalibrate before high-stakes deployment.
-
-## Install
-
-SiftSC is currently a private preview. Clone the repository, then install the MLX extra on an Apple-Silicon Mac:
+## Develop
 
 ```bash
 git clone https://github.com/heywanrong/SiftSC.git
 cd SiftSC
-python -m pip install -e '.[mlx]'
-```
-
-The core package depends only on NumPy. MLX is lazy-loaded, so custom or server backends can use the routing logic on Linux and Windows too.
-
-## Try it from the terminal
-
-```bash
-siftsc profiles
-
-siftsc ask "If 3 notebooks cost £4 each, what is the total?" \
-  --model ./models/mlx/qwen05b-q4 \
-  --profile qwen05b-q4-confidence
-```
-
-Machine-readable mode makes the decision auditable:
-
-```bash
-siftsc ask "What is 17 × 6?" \
-  --model ./models/mlx/qwen05b-q4 \
-  --profile qwen05b-q4-confidence \
-  --json > decision.json
-```
-
-Example route summary:
-
-```text
-[siftsc] route=greedy score=0.229 threshold=0.915 passes=1/5
-```
-
-The release was smoke-tested against the locally cached MLX-Q4 Qwen model on Apple Silicon:
-
-| Test route | Parsed answer for `7 + 5` | Passes | Vote |
-|---|---:|---:|---:|
-| Bundled default profile | 12 | 1/5 | greedy accepted |
-| Forced SC path | 12 | 5/5 | 5 votes for 12 |
-
-The scrubbed machine-readable report records Python, MLX, and `mlx-lm` versions in [`docs/benchmarks/local_mlx_smoke.json`](docs/benchmarks/local_mlx_smoke.json).
-
-Override `--threshold 0` to force the SC path for inspection, or `--threshold 1.1` to force the one-pass path. Lower thresholds invoke SC more often.
-
-## How it works
-
-SiftSC implements two gates from the paper:
-
-| Gate | Inputs available after pass 1 | Learned parameters | Best use |
-|---|---|---:|---|
-| `confidence` | Mean top-1 minus top-2 token probability margin | One threshold | Homogeneous workloads and tiny calibration sets |
-| `logistic` | 4 greedy statistics + 8 prompt counts | 12 weights + bias | Mixed tasks with at least a few hundred calibration prompts |
-
-The 12 logistic features are mean token margin, top-5 entropy, full-vocabulary entropy, answer length, and counts of characters, words, digits, arithmetic operators, question marks, commas, lines, and multi-step connectives. All model statistics come from the greedy pass already needed for the fallback answer.
-
-If the gate invokes SC, SiftSC reuses the greedy trace as vote 1 and draws `N−1` stochastic traces. That makes the deployed cost exactly:
-
-```text
-cost = 1 + (N - 1) × invoke_rate
-```
-
-The paper's accuracy measurements used five fresh stochastic traces; its cost analysis—and this implementation—uses the deployment-efficient `greedy + (N−1)` construction. This difference is documented rather than silently conflated.
-
-## Bring your own model backend
-
-Implement one `generate` method returning `Generation`:
-
-```python
-from siftsc import Generation
-
-
-class MyBackend:
-    def generate(self, prompt, *, greedy, seed, max_tokens, temperature, top_p):
-        response, token_stats = my_inference_call(...)
-        return Generation(
-            text=response,
-            token_ids=tuple(token_stats.ids),
-            top_logits=tuple(token_stats.top5_logits),
-            entropies=tuple(token_stats.entropies),
-            sum_logprob=token_stats.sum_logprob,
-        )
-```
-
-Confidence and logistic profiles require per-token logits. If your provider does not expose them, implement a custom gate over the prompt metadata or calibrate a text-only profile.
-
-## Reproduce the release artifacts
-
-This repository is independent of the paper's experiment tree. It ships only aggregate CSVs, plots, and kilobyte-scale gate profiles. If you have the paper repository locally, rebuild every shipped artifact with:
-
-```bash
-python scripts/build_release_assets.py --paper-root /path/to/ICONIP
-```
-
-Profile provenance—including SHA-256 hashes of the exact source record files—is stored inside each JSON profile and in [`docs/benchmarks/profile_manifest.json`](docs/benchmarks/profile_manifest.json).
-
-For development:
-
-```bash
 python -m pip install -e '.[dev,mlx]'
-ruff check .
-ruff format --check .
-mypy src/siftsc
-pytest --cov=siftsc --cov-report=term-missing
+ruff check . && mypy src/siftsc && pytest
 ```
 
-Set `SIFTSC_MLX_MODEL=/absolute/path/to/model` to include the real local-model integration test.
-
-## Scope and limitations
-
-- Evidence currently covers SC@5, two ≤1B model families, two precisions, two math benchmarks, and one generation seed per cell.
-- Bundled thresholds are tied to the paper's prompt format and model/precision cell. Recalibrate for a different model, task distribution, decoding setup, or risk tolerance.
-- The gate predicts where SC repaired a wrong greedy answer; it is not a correctness verifier.
-- Retention is a ratio with a low-accuracy denominator in these experiments. Skip-rate estimates are tighter than retention estimates.
-- SiftSC is experimental research software. Do not use it as the sole decision-maker in safety-critical or high-stakes systems.
+The core router depends only on NumPy. MLX is loaded lazily, so custom backends can use the routing package on other platforms.
 
 ## Citation
-
-If SiftSC helps your work, please cite the accompanying paper:
 
 ```bibtex
 @inproceedings{yang2026selfconsistencyhurts,
@@ -203,6 +171,4 @@ If SiftSC helps your work, please cite the accompanying paper:
 }
 ```
 
-## License
-
-Apache-2.0. See [LICENSE](LICENSE). The bundled profiles are derived artifacts from the authors' experiment records; no model weights or benchmark examples are redistributed.
+Apache-2.0. See [LICENSE](LICENSE).

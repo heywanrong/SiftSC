@@ -45,14 +45,14 @@ def test_high_confidence_skips_extra_calls() -> None:
 
 
 def test_low_confidence_invokes_and_votes() -> None:
-    backend = FakeBackend(["4", "5", "5", "5", "4"], ((0.0, 0.0),))
+    backend = FakeBackend(["4", "5", "5", "5", "4", "5"], ((0.0, 0.0),))
     gate = ConfidenceGate(threshold=0.5)
     result = SiftSC(backend, gate, samples=5)("2 + 2?")
     assert result.parsed_answer == "5"
     assert result.used_self_consistency
-    assert result.generation_passes == 5
-    assert backend.calls == [True, False, False, False, False]
-    assert result.vote_counts == {"4": 2, "5": 3}
+    assert result.generation_passes == 6
+    assert backend.calls == [True, False, False, False, False, False]
+    assert result.vote_counts == {"4": 1, "5": 4}
 
 
 @pytest.mark.parametrize(

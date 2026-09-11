@@ -4,6 +4,17 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- One-command Hugging Face model download and a verified `siftsc demo` comparison.
+- Interactive `siftsc chat` with live switching between plain and selective inference.
+- A product-first README focused on one compute result and one quality result.
+
+### Changed
+
+- Escalated requests now use five fresh sampled voters, exactly matching the paper's SC@5 protocol.
+- MLX CLI commands default to the public 290 MB Qwen2.5-0.5B 4-bit checkpoint.
+
 ## [0.1.0] - 2026-09-11
 
 ### Added

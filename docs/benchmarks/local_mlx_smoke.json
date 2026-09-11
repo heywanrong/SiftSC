@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "ran_at": "2026-09-11T10:11:49.569932+00:00",
+  "ran_at": "2026-09-11T10:56:16.981713+00:00",
   "platform": "macOS-15.7.4-arm64-arm-64bit-Mach-O",
   "python": "3.13.12",
   "mlx": "0.32.2",
@@ -21,7 +21,7 @@
   "forced_sc_route": {
     "parsed_answer": "12",
     "used_self_consistency": true,
-    "generation_passes": 5,
+    "generation_passes": 6,
     "gate_score": 0.22868325485296037,
     "threshold": 0.0,
     "greedy_tokens": 19.0,

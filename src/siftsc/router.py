@@ -65,26 +65,28 @@ class SiftSC:
                 generation_passes=1,
             )
 
-        # The greedy trace is vote 1, so SC@N costs N total passes rather than N+1.
-        generations = [greedy]
-        for index in range(1, self.samples):
-            generations.append(
-                self.backend.generate(
-                    prompt,
-                    greedy=False,
-                    seed=self.seed * 10_000 + index,
-                    max_tokens=self.max_tokens,
-                    temperature=self.temperature,
-                    top_p=self.top_p,
-                )
+        # Match the paper's SC@N protocol exactly: the gate observes one greedy
+        # draft, then N independent stochastic traces vote when escalation is
+        # requested. Keeping the draft out of the vote also makes offline paper
+        # examples reproducible in the packaged tool.
+        samples = [
+            self.backend.generate(
+                prompt,
+                greedy=False,
+                seed=self.seed * 10_000 + index + 1,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
             )
-        winner, parsed, counts = plurality_vote(generations, self.parser)
+            for index in range(self.samples)
+        ]
+        winner, parsed, counts = plurality_vote(samples, self.parser)
         return SiftResult(
             text=winner.text,
             parsed_answer=parsed,
             used_self_consistency=True,
             decision=decision,
-            generations=tuple(generations),
+            generations=(greedy, *samples),
             vote_counts=counts,
-            generation_passes=len(generations),
+            generation_passes=1 + len(samples),
         )

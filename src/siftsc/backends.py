@@ -29,6 +29,7 @@ class MLXBackend:
     model_path: str
     top_k: int = 5
     use_chat_template: bool = False
+    revision: str | None = None
     stop_sequences: tuple[str, ...] = (
         "\n\nAnswer the following",
         "\n\nQuestion:",
@@ -36,6 +37,11 @@ class MLXBackend:
     )
     _model: Any | None = field(default=None, init=False, repr=False)
     _tokenizer: Any | None = field(default=None, init=False, repr=False)
+
+    def load(self) -> None:
+        """Load a local model or download a Hugging Face model into its cache."""
+
+        self._load()
 
     def _load(self) -> tuple[Any, Any]:
         if self._model is None or self._tokenizer is None:
@@ -45,7 +51,11 @@ class MLXBackend:
                 raise RuntimeError(
                     "MLX support is optional. On macOS, run: pip install 'siftsc[mlx]'"
                 ) from exc
-            self._model, self._tokenizer = cast(tuple[Any, Any], load(self.model_path))
+            if self.revision is None:
+                loaded = load(self.model_path)
+            else:
+                loaded = load(self.model_path, revision=self.revision)
+            self._model, self._tokenizer = cast(tuple[Any, Any], loaded)
         return self._model, self._tokenizer
 
     def _format_prompt(self, prompt: str, tokenizer: Any) -> str:
@@ -118,5 +128,11 @@ class MLXBackend:
             top_logits=tuple(top_logits),
             entropies=tuple(entropies),
             sum_logprob=float(sum(chosen_logprobs)),
-            metadata={"backend": "mlx", "model": self.model_path, "seed": seed, "greedy": greedy},
+            metadata={
+                "backend": "mlx",
+                "model": self.model_path,
+                "revision": self.revision,
+                "seed": seed,
+                "greedy": greedy,
+            },
         )

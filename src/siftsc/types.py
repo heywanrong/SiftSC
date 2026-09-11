@@ -43,6 +43,6 @@ class SiftResult:
 
     @property
     def saved_passes(self) -> int:
-        """Generation passes saved relative to the configured SC budget."""
+        """Generation passes saved when SC is skipped."""
 
         return max(0, int(self.decision.features.get("sc_samples", 1)) - self.generation_passes)

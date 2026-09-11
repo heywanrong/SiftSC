@@ -14,13 +14,13 @@
 | PASS | Image manipulation | Both PNG charts are direct aggregate plots; architecture SVG is explicitly a conceptual workflow graphic. No photographic or generative scientific image is used. | Keep plotting script and aggregate CSVs in the repository. | No |
 | PASS | Citation and retraction status | The software README cites only the authors' forthcoming paper and official project links; it makes no literature-derived claim requiring a reference audit. | Add DOI and final proceedings URL only after publisher confirmation. | No |
 | NOTE | Authorship | Software metadata names Wanrong Yang as package author; preferred paper citation lists the four paper authors. | Confirm software contributor credits before a public release. | Maintainer/co-authors before public release |
-| PASS | Privacy / human participants | No human-subject data or PII is published. Raw prompts and completions are excluded. The local smoke report scrubs filesystem paths. | Continue secret/absolute-path scans before every release. | No IRB/ethics committee required for this software artifact |
+| PASS | Privacy / human participants | No human-subject data or PII is published. One public GSM8K prompt and its generated demo outputs are included; the local smoke report scrubs filesystem paths. | Continue secret/absolute-path scans before every release. | No IRB/ethics committee required for this software artifact |
 | PASS | Animal research | Not applicable. | None. | No IACUC required |
-| NOTE | Copyright and licenses | New source is Apache-2.0. Model weights, benchmark examples, paper PDFs, and third-party templates are excluded. Profiles contain only derived numeric coefficients and provenance hashes. | Confirm institutional/IP expectations with the authors before making the repository public. | Institutional/legal review only if required by employment terms |
+| NOTE | Copyright and licenses | New source is Apache-2.0. One GSM8K test example is attributed to its MIT-licensed upstream repository. Model weights, paper PDFs, and third-party templates are excluded. Profiles contain only derived numeric coefficients and provenance hashes. | Preserve the GSM8K attribution and confirm institutional/IP expectations before making the repository public. | Institutional/legal review only if required by employment terms |
 | PASS | Overclaiming | README includes the one-seed, task, model-size, precision, retention-CI, and threshold-selection limitations. | Preserve `docs/TERMINOLOGY.md` as wording lock. | No |
 | PASS | Deceptive ghostwriting | Not applicable to a software implementation. | Maintainer reviews and owns all public claims and code. | No |
 | NOTE | Patent / ownership | No patent claim is made. Potential institutional ownership has not been adjudicated in this code review. | Check University/employer policy before public commercialization or patent filing. | Institutional/legal only if applicable |
-| PASS | Software authenticity | Package builds, unit tests run, and both one-pass and five-pass paths execute against the local Qwen MLX-Q4 model. | Preserve the scrubbed smoke report and CI. | No |
+| PASS | Software authenticity | Package builds, unit tests run, and both one-pass and five-voter paths execute against local and public Qwen MLX-Q4 models. | Preserve the scrubbed smoke report and CI. | No |
 
 ## Contribution and AI-use note
 
