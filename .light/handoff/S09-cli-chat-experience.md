@@ -64,6 +64,7 @@ SIFTSC_VERBOSE=1 PYTHONPATH=src .venv/bin/python -m siftsc.cli ask "What is 7 + 
 
 - Do not treat this card as current fact; refresh `git status`, `git log -3`, and the latest CI run first.
 - Do not test with the global `siftsc` from miniconda; use `PYTHONPATH=src .venv/bin/python`.
+- CI runs mypy on Linux with only the `dev` extra, so any lazy import of an optional library (`huggingface_hub`, `mlx`, `mlx_lm`) needs an entry in `[[tool.mypy.overrides]]`; reproduce with a venv that has only `.[dev]` installed before pushing.
 - Do not delete the Hugging Face cache; the demo reuses the cached 290 MB checkpoint.
 - Do not publish the repository, change benchmark claims, or mutate the ICONIP workspace.
 - At the end of the next session, create an `S10` handoff card and print the next copyable startup prompt.
