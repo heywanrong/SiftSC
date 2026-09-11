@@ -8,6 +8,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 - The repository is public. README install text no longer mentions collaborator authentication, and the one-line installer is the primary path.
 
+### Fixed
+
+- The installer now removes an older pip-installed `siftsc` that sits earlier on PATH (for example in a conda Python) and would otherwise shadow the new command; it reports exactly what it removed.
+
 ## [0.3.0] - 2026-09-11
 
 ### Added
