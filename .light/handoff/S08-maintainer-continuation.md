@@ -12,13 +12,13 @@ SiftSC is an independent, installable private-preview repository extracted from 
 
 ## Repository and release state
 
-- Project root: `/Users/wanrong/Documents/ChatGPT/硅基线程/SiftSC`
+- Project root: `~/Documents/ChatGPT/硅基线程/SiftSC`
 - Remote: `https://github.com/heywanrong/SiftSC`
 - Visibility: **PRIVATE**; do not make it public without explicit maintainer approval.
 - Default branch: `main`
 - Latest feature baseline: `82515d3873c086d2273671d43f3b6af1e2324177` (`feat: make demo an interactive terminal experience`)
 - CI: GitHub Actions run `34607179786` passed on Python 3.11, 3.12, and 3.13.
-- Paper workspace: `/Users/wanrong/Desktop/Projects/ICONIP`; it is source context only and must not be mutated or vendored into SiftSC.
+- Paper workspace: `~/Desktop/Projects/ICONIP`; it is source context only and must not be mutated or vendored into SiftSC.
 
 ## Completed artifacts and verified behavior
 
@@ -50,7 +50,7 @@ Expected terminal transition after the showcase:
 Source validation (use the project environment and source path so an older globally installed package is not imported):
 
 ```bash
-cd /Users/wanrong/Documents/ChatGPT/硅基线程/SiftSC
+cd ~/Documents/ChatGPT/硅基线程/SiftSC
 PYTHONPATH=src .venv/bin/python -m pytest -q
 .venv/bin/ruff check .
 .venv/bin/ruff format --check .

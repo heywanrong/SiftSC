@@ -88,6 +88,12 @@ stages:
       - src/siftsc/backends.py
       - README.md
     evidence: pseudo-terminal runs at 80 columns with a fresh Hugging Face cache showed download progress, no leaked library output, the demo answering typed questions, compare mode, /stats charts, and Ctrl-C recovery; unit, lint, format, and strict type gates passed
+  - name: public_release
+    status: PASS
+    artifacts:
+      - https://github.com/heywanrong/SiftSC
+      - install.sh
+    evidence: full git history scanned for tokens, keys, and emails (none); personal paths scrubbed from handoff cards; visibility switched to public at the maintainer's request; anonymous clone and the raw installer line verified
 known_limitations:
   - one generation seed per experiment cell
   - thresholds selected and evaluated on the same out-of-fold score pool

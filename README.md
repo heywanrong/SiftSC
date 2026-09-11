@@ -58,7 +58,7 @@ siftsc
 <details>
 <summary><strong>📦 Other ways to install</strong></summary>
 
-The installer needs the repository to be public. While it is a private preview, GitHub must be reachable and your Git client authenticated as a collaborator; then either line works:
+Already have uv or Python 3.11+? Either line installs the same thing:
 
 ```bash
 uv tool install --python 3.12 "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git"
@@ -75,12 +75,10 @@ After the PyPI release the spec becomes simply `"siftsc[mlx]"`. The `mlx` extra 
 <details>
 <summary><strong>🧯 Install problems</strong></summary>
 
-`Failed to connect to github.com port 443` is raised by `git clone` before SiftSC starts. Check connectivity and private-repository access:
+`Failed to connect to github.com port 443` is raised by `git clone` before SiftSC starts: the terminal cannot reach GitHub (network, VPN, or proxy). Check with:
 
 ```bash
 curl -I https://github.com
-gh auth status
-gh auth setup-git
 git ls-remote https://github.com/heywanrong/SiftSC.git HEAD
 ```
 

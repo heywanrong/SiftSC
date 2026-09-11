@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- The repository is public. README install text no longer mentions collaborator authentication, and the one-line installer is the primary path.
+
 ## [0.3.0] - 2026-09-11
 
 ### Added

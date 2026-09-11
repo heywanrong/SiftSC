@@ -12,8 +12,8 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 
 ## Repository and release state
 
-- Project root: `/Users/wanrong/Documents/ChatGPT/硅基线程/SiftSC`
-- Remote: `https://github.com/heywanrong/SiftSC` (**PRIVATE**; do not publish without maintainer approval)
+- Project root: `~/Documents/ChatGPT/硅基线程/SiftSC`
+- Remote: `https://github.com/heywanrong/SiftSC` (**PUBLIC** since 2026-09-11 at the maintainer's request; every push is visible)
 - Default branch: `main`
 - Package version is `0.3.0`. pip does **not** reinstall a Git direct-URL requirement whose version is unchanged, so every user-visible release needs a version bump; `siftsc --version` shows the installed one.
 - Design note for this session: `.light/design/2026-09-11-cli-chat-experience.md`
@@ -42,7 +42,7 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 ## Commands to reproduce
 
 ```bash
-cd /Users/wanrong/Documents/ChatGPT/硅基线程/SiftSC
+cd ~/Documents/ChatGPT/硅基线程/SiftSC
 PYTHONPATH=src .venv/bin/python -m pytest -q
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 PYTHONPATH=src .venv/bin/mypy src/siftsc
@@ -63,7 +63,7 @@ SIFTSC_VERBOSE=1 PYTHONPATH=src .venv/bin/python -m siftsc.cli ask "What is 7 + 
 
 1. Try the animated flow in a real macOS Terminal window (not only the pseudo-terminal) and check emoji column alignment in the user's font; adjust `POLICY_ICONS` if a glyph renders narrow.
 2. Watch for questions the router misclassifies (`looks_like_math`); extend the phrase lists rather than loosening the digit rule, and keep the math prompt byte-for-byte.
-3. Before going public: create the PyPI project and trusted publisher, tag `v0.3.0`, make the repository public, then verify the `curl | sh` line from a fresh Mac account. An npm wrapper was considered and rejected: it could only shell out to this Python stack, and a JavaScript port would break the mlx-lm reproducibility the demo depends on.
+3. Create the PyPI project and trusted publisher (environment `pypi`), then tag `v0.3.0`; afterwards the install spec can become `siftsc[mlx]`. The `curl | sh` line was verified against the public repository from an isolated uv sandbox on 2026-09-11. An npm wrapper was considered and rejected: it could only shell out to this Python stack, and a JavaScript port would break the mlx-lm reproducibility the demo depends on.
 
 ## Do not
 
@@ -71,5 +71,5 @@ SIFTSC_VERBOSE=1 PYTHONPATH=src .venv/bin/python -m siftsc.cli ask "What is 7 + 
 - Do not test with the global `siftsc` from miniconda; use `PYTHONPATH=src .venv/bin/python`.
 - CI runs mypy on Linux with only the `dev` extra, so any lazy import of an optional library (`huggingface_hub`, `mlx`, `mlx_lm`) needs an entry in `[[tool.mypy.overrides]]`; reproduce with a venv that has only `.[dev]` installed before pushing.
 - Do not delete the Hugging Face cache; the demo reuses the cached 290 MB checkpoint.
-- Do not publish the repository, change benchmark claims, or mutate the ICONIP workspace.
+- Do not change benchmark claims or mutate the ICONIP workspace. The repository is public: scan for secrets and personal paths before every push, and keep `.light/` free of anything private.
 - At the end of the next session, create an `S10` handoff card and print the next copyable startup prompt.

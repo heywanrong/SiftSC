@@ -28,6 +28,10 @@
 - Wanrong Yang is listed as the initial software package author; additional software contributors should be credited from Git history.
 - AI-assisted engineering was used to structure, implement, test, and document the private-preview repository. The maintainer remains responsible for technical accuracy, licensing, research claims, and the decision to publish.
 
+## Public release note (2026-09-11)
+
+The maintainer requested that the repository be made public. Before the switch the full git history was scanned for tokens, keys, private keys, and e-mail addresses (none found), personal filesystem paths were removed from the session cards, and no model weights, raw prompts beyond the two attributed GSM8K demo questions, or paper files are tracked. The open items above (contributor credit, final citation metadata, institutional IP expectations) remain the maintainer's responsibility.
+
 ## Conclusion
 
 - Overall: pass for a private preview, with warnings to confirm contributor credit, final citation metadata, and institutional IP expectations before a public release.

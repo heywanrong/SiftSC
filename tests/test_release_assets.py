@@ -64,8 +64,9 @@ def test_readme_discloses_bundled_demo_platform() -> None:
     assert "built-in Linux or Windows model runner is not included yet" in readme
 
 
-def test_readme_explains_private_preview_install_failures() -> None:
+def test_readme_explains_install_failures() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "Failed to connect to github.com port 443" in readme
-    assert "gh auth setup-git" in readme
+    assert "install.sh | sh" in readme
     assert "python -m pip install -q --upgrade '.[mlx]'" in readme
+    assert "collaborator" not in readme
