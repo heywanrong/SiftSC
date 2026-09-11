@@ -24,7 +24,18 @@ DEMO_QUESTION = (
     "between his first and second stops?"
 )
 DEMO_ANSWER = "25"
+PROTECTION_QUESTION = (
+    "Darrell and Allen's ages are in the ratio of 7:11. If their total age now is 162, "
+    "calculate Allen's age 10 years from now."
+)
+PROTECTION_ANSWER = "109"
 DEMO_THRESHOLD = 0.84
+BENCHMARK_PROMPTS = 400
+BENCHMARK_ESCALATIONS = 3
+BENCHMARK_ALWAYS_SC_PASSES = BENCHMARK_PROMPTS * 5
+BENCHMARK_SIFTSC_PASSES = BENCHMARK_PROMPTS + BENCHMARK_ESCALATIONS * 5
+BENCHMARK_COMPUTE_REDUCTION = 1.0 - BENCHMARK_SIFTSC_PASSES / BENCHMARK_ALWAYS_SC_PASSES
+BENCHMARK_ACCURACY_RETENTION = 0.987
 
 
 def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
@@ -125,6 +136,29 @@ def _plain_generation(args: argparse.Namespace, backend: MLXBackend, prompt: str
     )
 
 
+def _compute_comparison(passes: int, always_sc_passes: int) -> dict[str, int | float]:
+    saved = always_sc_passes - passes
+    reduction = saved / always_sc_passes if always_sc_passes else 0.0
+    return {
+        "actual_passes": passes,
+        "always_sc_passes": always_sc_passes,
+        "passes_saved": saved,
+        "compute_reduction": reduction,
+    }
+
+
+def _compute_line(passes: int, always_sc_passes: int, *, label: str = "compute") -> str:
+    comparison = _compute_comparison(passes, always_sc_passes)
+    saved = int(comparison["passes_saved"])
+    percentage = abs(float(comparison["compute_reduction"])) * 100
+    direction = "saved" if saved >= 0 else "extra"
+    return (
+        f"[{label}] actual={passes} pass{'es' if passes != 1 else ''} · "
+        f"Always-SC={always_sc_passes} passes · "
+        f"{direction}={abs(saved)} ({percentage:.1f}%)"
+    )
+
+
 def _run_ask(args: argparse.Namespace) -> int:
     backend = _load_backend(args.model, chat_template=args.chat_template)
     prompt = _format_prompt(args.prompt, raw=args.raw_prompt)
@@ -139,6 +173,7 @@ def _run_ask(args: argparse.Namespace) -> int:
                         "text": generation.text,
                         "parsed_answer": answer,
                         "passes": 1,
+                        "compute_comparison": _compute_comparison(1, args.samples),
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -147,15 +182,19 @@ def _run_ask(args: argparse.Namespace) -> int:
         else:
             print(generation.text.strip())
             print("\n[plain] passes=1")
+            print(_compute_line(1, args.samples))
         return 0
 
     result = _make_runner(args, backend)(prompt, feature_text=args.prompt)
     if args.json:
-        print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
+        payload = asdict(result)
+        payload["compute_comparison"] = _compute_comparison(result.generation_passes, args.samples)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         route = "SC" if result.used_self_consistency else "greedy"
         print(result.text.strip())
         print(f"\n[siftsc] route={route} passes={result.generation_passes}")
+        print(_compute_line(result.generation_passes, args.samples))
     return 0
 
 
@@ -171,6 +210,8 @@ def _run_chat(args: argparse.Namespace) -> int:
     mode = args.mode or _choose_mode()
     backend = _load_backend(args.model)
     runner = _make_runner(args, backend)
+    session_passes = 0
+    session_always_sc_passes = 0
     print("Ask a reasoning question. Commands: /plain, /siftsc, /clear, /exit")
     print("Each turn is independent so the bundled research profile stays in-distribution.\n")
     while True:
@@ -196,14 +237,23 @@ def _run_chat(args: argparse.Namespace) -> int:
         prompt = _format_prompt(question, raw=args.raw_prompt)
         if mode == "plain":
             generation = _plain_generation(args, backend, prompt)
+            passes = 1
             print(f"assistant> {generation.text.strip()}")
-            print("[plain] passes=1\n")
+            print("[plain] passes=1")
+            print(_compute_line(passes, args.samples))
+            session_passes += passes
+            session_always_sc_passes += args.samples
+            print(_compute_line(session_passes, session_always_sc_passes, label="session"), "\n")
             continue
 
         result = runner(prompt, feature_text=question)
         route = "voted" if result.used_self_consistency else "one pass"
         print(f"assistant> {result.text.strip()}")
-        print(f"[siftsc] {route} · passes={result.generation_passes}\n")
+        print(f"[siftsc] {route} · passes={result.generation_passes}")
+        print(_compute_line(result.generation_passes, args.samples))
+        session_passes += result.generation_passes
+        session_always_sc_passes += args.samples
+        print(_compute_line(session_passes, session_always_sc_passes, label="session"), "\n")
 
 
 def _run_demo(args: argparse.Namespace) -> int:
@@ -215,13 +265,49 @@ def _run_demo(args: argparse.Namespace) -> int:
     )
     plain = parse_answer(result.generations[0].text)
     votes = [parse_answer(item.text) for item in result.generations[1:]]
-    reproduced = plain != DEMO_ANSWER and result.parsed_answer == DEMO_ANSWER
+    repair_reproduced = plain != DEMO_ANSWER and result.parsed_answer == DEMO_ANSWER
+
+    protected = _make_runner(demo_args, backend)(
+        math_prompt(PROTECTION_QUESTION), feature_text=PROTECTION_QUESTION
+    )
+    forced_args = argparse.Namespace(**vars(args))
+    forced_args.threshold = 0.0
+    always_sc = _make_runner(forced_args, backend)(
+        math_prompt(PROTECTION_QUESTION), feature_text=PROTECTION_QUESTION
+    )
+    protected_plain = parse_answer(protected.generations[0].text)
+    protection_reproduced = (
+        protected_plain == PROTECTION_ANSWER
+        and protected.parsed_answer == PROTECTION_ANSWER
+        and not protected.used_self_consistency
+        and always_sc.parsed_answer != PROTECTION_ANSWER
+    )
+    reproduced = repair_reproduced and protection_reproduced
     payload = {
-        "question": DEMO_QUESTION,
-        "expected": DEMO_ANSWER,
-        "plain": plain,
-        "votes": votes,
-        "siftsc": result.parsed_answer,
+        "repair_case": {
+            "question": DEMO_QUESTION,
+            "expected": DEMO_ANSWER,
+            "plain": plain,
+            "votes": votes,
+            "siftsc": result.parsed_answer,
+            "reproduced": repair_reproduced,
+        },
+        "protection_case": {
+            "question": PROTECTION_QUESTION,
+            "expected": PROTECTION_ANSWER,
+            "plain": protected_plain,
+            "always_sc": always_sc.parsed_answer,
+            "siftsc": protected.parsed_answer,
+            "siftsc_passes": protected.generation_passes,
+            "reproduced": protection_reproduced,
+        },
+        "measured_workload": {
+            "prompts": BENCHMARK_PROMPTS,
+            "always_sc_passes": BENCHMARK_ALWAYS_SC_PASSES,
+            "siftsc_actual_passes": BENCHMARK_SIFTSC_PASSES,
+            "compute_reduction": BENCHMARK_COMPUTE_REDUCTION,
+            "accuracy_retention": BENCHMARK_ACCURACY_RETENTION,
+        },
         "reproduced": reproduced,
         "model": args.model,
         "seed": args.seed,
@@ -233,16 +319,39 @@ def _run_demo(args: argparse.Namespace) -> int:
         sift_mark = "✓" if result.parsed_answer == DEMO_ANSWER else "✗"
         vote_text = " · ".join(v or "∅" for v in votes)
         print("─" * 68)
+        print("CASE 1 · VOTE WHEN IT HELPS")
         print(f"Question  {DEMO_QUESTION}")
         print(f"Expected  {DEMO_ANSWER}")
         print("─" * 68)
         print(f"PLAIN    {plain or '∅'}  {plain_mark}   (1 deterministic pass)")
         print(f"SIFTSC   {result.parsed_answer or '∅'}  {sift_mark}   (votes: {vote_text})")
         print("─" * 68)
-        if reproduced:
-            print("Reproduced: plain is wrong, SiftSC is right.")
-        else:
-            print("Result drifted; see notes below.")
+        print("CASE 2 · SKIP WHEN VOTING HURTS")
+        print(f"Question  {PROTECTION_QUESTION}")
+        print(f"Expected  {PROTECTION_ANSWER}")
+        print("─" * 68)
+        print(f"PLAIN       {protected_plain or '∅'}  ✓")
+        print(
+            f"ALWAYS-SC   {always_sc.parsed_answer or '∅'}  ✗   "
+            "(blind voting changed a right answer)"
+        )
+        print(f"SIFTSC      {protected.parsed_answer or '∅'}  ✓   (vote skipped)")
+        print(_compute_line(protected.generation_passes, args.samples))
+        print("─" * 68)
+        print(f"MEASURED WORKLOAD · {BENCHMARK_PROMPTS} PROMPTS")
+        print(f"ALWAYS-SC   {BENCHMARK_ALWAYS_SC_PASSES:,} generation passes")
+        print(f"SIFTSC        {BENCHMARK_SIFTSC_PASSES:,} actual generation passes")
+        print(
+            f"SAVED       {BENCHMARK_ALWAYS_SC_PASSES - BENCHMARK_SIFTSC_PASSES:,} passes "
+            f"({BENCHMARK_COMPUTE_REDUCTION:.1%} less compute)"
+        )
+        print(f"QUALITY     {BENCHMARK_ACCURACY_RETENTION:.1%} of Always-SC accuracy retained")
+        print("─" * 68)
+        print(
+            "Reproduced: repair when voting helps; skip when voting hurts."
+            if reproduced
+            else "Result drifted; see notes below."
+        )
     if not reproduced:
         print(
             "[siftsc] The fixed demo did not reproduce. "

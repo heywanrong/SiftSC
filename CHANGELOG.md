@@ -8,6 +8,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 - One-command Hugging Face model download and a verified `siftsc demo` comparison.
 - Interactive `siftsc chat` with live switching between plain and selective inference.
+- Per-request and cumulative generation-pass savings relative to Always-SC@5.
+- A second verified demo showing SiftSC preserving an answer that blind voting changes.
 - A product-first README focused on one compute result and one quality result.
 
 ### Changed

@@ -47,6 +47,13 @@ stages:
       - docs/assets/hero.svg
       - src/siftsc/cli.py
     evidence: public 290 MB Hugging Face model auto-download, interactive mode switching, and a plain-wrong/SiftSC-right demo all reproduced locally
+  - name: compute_visibility
+    status: PASS
+    artifacts:
+      - README.md
+      - src/siftsc/cli.py
+      - docs/benchmarks/RESULTS.md
+    evidence: CLI reports per-request and cumulative generation-pass savings; public-model demo shows both beneficial and harmful voting cases plus 79.2% workload compute reduction
 known_limitations:
   - one generation seed per experiment cell
   - thresholds selected and evaluated on the same out-of-fold score pool

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
   <title id="title">SiftSC benchmark headline</title>
-  <desc id="desc">99.3 percent of prompts stay one-pass while retaining 98.7 percent of always self-consistency accuracy.</desc>
+  <desc id="desc">79.2 percent fewer generation passes while retaining 98.7 percent of always self-consistency accuracy.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#070b18"/>
@@ -22,8 +22,8 @@
   <text x="600" y="132" text-anchor="middle" fill="#ffffff" font-family="Inter,ui-sans-serif,system-ui" font-size="38" font-weight="700">Think once. Vote only when it helps.</text>
   <rect x="78" y="180" width="500" height="236" rx="24" fill="#0f172a" stroke="#22d3ee" stroke-opacity=".45"/>
   <text x="328" y="235" text-anchor="middle" fill="#94a3b8" font-family="Inter,ui-sans-serif,system-ui" font-size="18" font-weight="600" letter-spacing="2">COMPUTE</text>
-  <text x="328" y="326" text-anchor="middle" fill="url(#accent)" font-family="Inter,ui-sans-serif,system-ui" font-size="78" font-weight="800">99.3%</text>
-  <text x="328" y="370" text-anchor="middle" fill="#f8fafc" font-family="Inter,ui-sans-serif,system-ui" font-size="24">of prompts stay one-pass</text>
+  <text x="328" y="326" text-anchor="middle" fill="url(#accent)" font-family="Inter,ui-sans-serif,system-ui" font-size="78" font-weight="800">79.2%</text>
+  <text x="328" y="370" text-anchor="middle" fill="#f8fafc" font-family="Inter,ui-sans-serif,system-ui" font-size="24">fewer generation passes</text>
   <rect x="622" y="180" width="500" height="236" rx="24" fill="#0f172a" stroke="#a78bfa" stroke-opacity=".45"/>
   <text x="872" y="235" text-anchor="middle" fill="#94a3b8" font-family="Inter,ui-sans-serif,system-ui" font-size="18" font-weight="600" letter-spacing="2">QUALITY</text>
   <text x="872" y="326" text-anchor="middle" fill="url(#accent)" font-family="Inter,ui-sans-serif,system-ui" font-size="78" font-weight="800">98.7%</text>

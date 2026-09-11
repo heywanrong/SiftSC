@@ -14,11 +14,11 @@ Selective self-consistency for small, local language models. No API key. No fine
 &nbsp;
 <a href="#chat-with-the-model"><img alt="Start local chat" src="https://img.shields.io/badge/START_LOCAL_CHAT-0891b2?style=for-the-badge"></a>
 
-![SiftSC keeps most prompts at one pass while retaining self-consistency accuracy](docs/assets/hero.svg)
+![SiftSC uses fewer generation passes while retaining self-consistency accuracy](docs/assets/hero.svg)
 
 </div>
 
-Small models do not need five opinions for every question. SiftSC first asks for one answer, then uses a tiny router to decide whether that answer should stand or whether five independent reasoning traces should vote.
+Small models do not need five opinions for every question. SiftSC uses dramatically less compute while keeping performance close to Always-SC—and avoids some of the cases where majority voting makes a correct small-model answer worse. It first asks for one answer, then uses a tiny router to decide whether that answer should stand or whether five independent reasoning traces should vote.
 
 ## Run it now
 
@@ -30,7 +30,9 @@ python -m pip install "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.gi
 
 The first run downloads [`mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/tree/a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3) (about 290 MB). SiftSC pins the tested model revision and caches it for every run after that.
 
-### One model. One question. Two outcomes.
+### One model. Two jobs: repair and protect.
+
+When voting helps, SiftSC escalates:
 
 ```text
 Question  Henry made two stops during his 60-mile bike trip. He first
@@ -43,9 +45,32 @@ SIFTSC   25  ✓   (votes: 20 · 15 · 25 · 25 · 30)
 
 The second stop is at mile `60 - 15 = 45`, so the distance between the stops is `45 - 20 = 25`. Plain inference latches onto the “15 miles” distractor; independent traces recover the two-step calculation and `25` wins the vote.
 
-This output was generated on the public Hugging Face model with `mlx-lm 0.31.3`; it is not a mocked transcript. `siftsc demo` pins the question, decoding seed, and demo routing threshold, then exits with an error if “plain wrong, SiftSC right” no longer reproduces.
+These outputs were generated on the public Hugging Face model with `mlx-lm 0.31.3`; they are not mocked transcripts. `siftsc demo` pins the questions, decoding seed, and demo routing threshold, then exits with an error if either behavior no longer reproduces.
 
-<sub>Demo question from the [GSM8K test set](https://github.com/openai/grade-school-math), released under the MIT License.</sub>
+When voting hurts, SiftSC stops after the correct first answer:
+
+```text
+Question    Darrell and Allen's ages are in the ratio 7:11. Their total
+            age is 162. How old will Allen be in 10 years?
+
+PLAIN       109  ✓
+ALWAYS-SC   100  ✗   blind voting changed a correct answer
+SIFTSC      109  ✓   voting skipped
+
+[compute] actual=1 pass · Always-SC=5 passes · saved=4 (80.0%)
+```
+
+The demo finishes with the measured workload-level difference:
+
+```text
+MEASURED WORKLOAD · 400 PROMPTS
+ALWAYS-SC   2,000 generation passes
+SIFTSC        415 actual generation passes
+SAVED       1,585 passes (79.2% less compute)
+QUALITY     98.7% of Always-SC accuracy retained
+```
+
+<sub>Demo questions from the [GSM8K test set](https://github.com/openai/grade-school-math), released under the MIT License.</sub>
 
 ## Chat with the model
 
@@ -80,14 +105,22 @@ siftsc chat --mode siftsc
 
 Each chat turn is treated as an independent reasoning question because the bundled router was calibrated on math reasoning, not open-ended conversation history.
 
+After every answer, the CLI reports both the current request and cumulative session usage:
+
+```text
+[siftsc] one pass · passes=1
+[compute] actual=1 pass · Always-SC=5 passes · saved=4 (80.0%)
+[session] actual=8 passes · Always-SC=15 passes · saved=7 (46.7%)
+```
+
 ## The difference, in two numbers
 
-| On Qwen2.5-0.5B MLX 4-bit | Always run SC@5 | Use SiftSC |
+| On Qwen2.5-0.5B MLX 4-bit | Always-SC@5 | SiftSC |
 |---|---:|---:|
-| Prompt handling | 5 samples on every prompt | **1 pass on 99.3%** |
+| Actual generation passes over 400 prompts | 2,000 | **415 · 79.2% fewer** |
 | Accuracy relative to always-SC | 100% reference | **98.7% retained** |
 
-These are measured point estimates from 400 pooled GSM8K and MATH-500 prompts. The threshold was selected out-of-fold; it was not chosen on the demo question. Full confidence intervals, per-model results, checksums, and caveats remain available in [the benchmark report](docs/benchmarks/RESULTS.md), away from the quick-start path.
+The SiftSC pass count uses the CLI's conservative, auditable accounting: one routing draft on every prompt, plus five fresh voters on each of the three escalated prompts. The policy was measured on 400 pooled GSM8K and MATH-500 prompts. Its threshold was selected out-of-fold; it was not chosen on either demo question. Full confidence intervals, per-model results, checksums, and caveats remain available in [the benchmark report](docs/benchmarks/RESULTS.md), away from the quick-start path.
 
 ## How SiftSC works
 
