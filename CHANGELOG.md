@@ -4,8 +4,18 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-11
+
+### Added
+
+- `siftsc ui`, a full-screen terminal interface built on Textual: conversation log, live cost panels for the current question and the session, spinner, slash commands, and `Ctrl+T`/`Ctrl+G`/`Ctrl+L`/`Ctrl+Q` keys. Running `siftsc` with no arguments opens it.
+- `install.sh`: a one-line installer for Apple-Silicon Macs that installs uv if needed, lets uv fetch Python, and installs SiftSC as an isolated tool.
+- A `ui` extra; the `mlx` extra now includes the interface.
+- A tag-triggered PyPI release workflow (trusted publishing; needs one-time setup on pypi.org).
+
 ### Changed
 
+- The line-mode chat, `siftsc ask`, and the interface share one engine module that returns structured turn reports, so the front ends cannot drift apart.
 - README condensed to about a third of its length; the two hard limits (Apple Silicon only, checkable answers only) now open the page and a Scope section replaces the scattered caveats.
 
 ## [0.2.1] - 2026-09-11

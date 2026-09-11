@@ -41,11 +41,36 @@ prompt ──→ one draft ──→ route ──┬──→ accept now      ·
 
 ## 🚀 Run it
 
+One line. It installs [uv](https://docs.astral.sh/uv/) if needed (a tool manager that also fetches Python itself, so no Python setup is required), then SiftSC with the model runner and the full-screen interface:
+
 ```bash
-python -m pip install -q --upgrade "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
+curl -fsSL https://raw.githubusercontent.com/heywanrong/SiftSC/main/install.sh | sh
 ```
 
-This installs the CLI, downloads the pinned 290 MB [`mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/tree/a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3) once, plays two verified cases, then keeps the model loaded for your own questions. The same command upgrades an existing install; `siftsc --version` shows which release you have. While the repository is private, GitHub must be reachable and your Git client authenticated as a collaborator.
+Then just type:
+
+```bash
+siftsc
+```
+
+`siftsc` alone opens the full-screen interface; `siftsc demo` plays two verified cases first and then hands you the prompt. The first launch downloads the pinned 290 MB [`mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/tree/a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3) once. Re-run the same line to upgrade; `siftsc --version` shows which release you have.
+
+<details>
+<summary><strong>📦 Other ways to install</strong></summary>
+
+The installer needs the repository to be public. While it is a private preview, GitHub must be reachable and your Git client authenticated as a collaborator; then either line works:
+
+```bash
+uv tool install --python 3.12 "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git"
+```
+
+```bash
+python -m pip install -q --upgrade "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git"
+```
+
+After the PyPI release the spec becomes simply `"siftsc[mlx]"`. The `mlx` extra includes the interface; `siftsc[ui]` adds only the interface, and the bare package keeps the NumPy router for custom backends.
+
+</details>
 
 <details>
 <summary><strong>🧯 Install problems</strong></summary>
@@ -114,9 +139,28 @@ SIFTSC     109  ✓   1 pass · vote skipped
 
 <sub>Demo questions from the [GSM8K test set](https://github.com/openai/grade-school-math), MIT License. The losing always-SC answer can differ between machines; what is checked is that the blind vote loses `109` and SiftSC keeps it.</sub>
 
-## 💬 Chat
+## 🖥️ Full-screen interface
 
-After the demo, type at the `💬 you` prompt, or start fresh with `siftsc chat`. Every answer ends with the route the router took and a compute chart:
+`siftsc` (or `siftsc ui`) opens Sifty's full-screen chat: the conversation on the left, the cost of the current question and the session on the right, a spinner while the model works, and a footer with the keys. The same slash commands work there, plus `Ctrl+T` to cycle the mode, `Ctrl+G` for the session chart, `Ctrl+L` to clear and `Ctrl+Q` to quit.
+
+```text
+┌ SiftSC · 🧭 siftsc · votes only when the router escalates ──────────────────────────┐
+│ 💬 you · siftsc                                       │ 📈 This question             │
+│    Henry made two stops during his 60-mile bike trip… │ ⚡ plain    █░░░░░  1        │
+│ 🤖 Sifty                                              │ 👥 always   █████░  5        │
+│    … 60 - 35 = 25 miles between the stops. Answer: 25 │ 🧭 siftsc   ██████  6        │
+│ 🎯 Answer: 25 · 🗳️ vote called · 6 passes · 2.8s      │                              │
+│                                                        │ 📊 Session                   │
+│                                                        │ 2 questions · 1 vote         │
+│                                                        │ spent 7 · always-SC 10       │
+│ > Ask a question · Enter to send · /help for commands  │ ✅ saved 3 (30.0%)           │
+│ ^T Mode  ^G Session  ^L Clear  ^Q Quit                                                │
+└───────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 💬 Line-mode chat
+
+Prefer plain scrolling output? After the demo, type at the `💬 you` prompt, or start fresh with `siftsc chat`. Every answer ends with the route the router took and a compute chart:
 
 ```text
 💬 you · siftsc > Henry made two stops during his 60-mile bike trip...

@@ -1,0 +1,25 @@
+# Publishes the package to PyPI when a version tag (v0.3.0, …) is pushed.
+# One-time setup by the maintainer: on pypi.org create the project "siftsc" and add a
+# trusted publisher for this repository with the environment name "pypi".
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -15,7 +15,7 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 - Project root: `/Users/wanrong/Documents/ChatGPT/硅基线程/SiftSC`
 - Remote: `https://github.com/heywanrong/SiftSC` (**PRIVATE**; do not publish without maintainer approval)
 - Default branch: `main`
-- Package version is `0.2.1`. pip does **not** reinstall a Git direct-URL requirement whose version is unchanged, so every user-visible release needs a version bump; `siftsc --version` shows the installed one.
+- Package version is `0.3.0`. pip does **not** reinstall a Git direct-URL requirement whose version is unchanged, so every user-visible release needs a version bump; `siftsc --version` shows the installed one.
 - Design note for this session: `.light/design/2026-09-11-cli-chat-experience.md`
 
 ## What changed in S09
@@ -25,6 +25,9 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 - `src/siftsc/terminal.py` — spinner with live `update()` detail and `{elapsed}`; `QuietLibraryOutput` (file-descriptor capture with Python-level fallback); `bar`, `wrap_labeled`, `terminal_width`, `format_seconds`.
 - `src/siftsc/backends.py` — `MeteredBackend` (seconds and tokens per pass), `MLXBackend.is_cached()` and `ensure_downloaded(progress)` using mlx-lm's own file patterns.
 - `src/siftsc/router.py` — `SiftSC.sample_traces()`; escalation behaviour unchanged (same seeds).
+- `src/siftsc/engine.py` — the turn engine (routing, generation, `TurnReport` with headline/notes/chart/side rows, `parse_input`, `status_message`) shared by `cli.py` and the new `tui.py`.
+- `src/siftsc/tui.py` — Textual full-screen app (`siftsc ui`, also bare `siftsc`): RichLog conversation, side panel with compact cost rows, worker-thread generation, Ctrl+T/G/L/Q. Headless tests in `tests/test_tui.py` use `App.run_test`.
+- `install.sh` + README: uv-based one-line install for the public release; `uv tool install --python 3.12` fetches Python itself. `.github/workflows/release.yml` publishes tags to PyPI once trusted publishing is configured.
 - README: condensed to roughly a third; opens with the two hard limits (Apple Silicon only, checkable answers only), keeps the test-locked strings, and ends with a Scope section. Transcripts match the 0.2.1 output.
 - `src/siftsc/prompts.py` — `looks_like_math()` routes questions: digits, number words, quantity phrases, math signs, or Chinese quantity words take the paper prompt; everything else takes the model's chat template with a short Sifty system prompt (`MLXBackend.chat_prompt`, `render_chat_prompt`). One-off `/math` and `/talk` prefixes and `--question-type` override it. General questions are answered in one pass and never voted, in every mode.
 
@@ -60,7 +63,7 @@ SIFTSC_VERBOSE=1 PYTHONPATH=src .venv/bin/python -m siftsc.cli ask "What is 7 + 
 
 1. Try the animated flow in a real macOS Terminal window (not only the pseudo-terminal) and check emoji column alignment in the user's font; adjust `POLICY_ICONS` if a glyph renders narrow.
 2. Watch for questions the router misclassifies (`looks_like_math`); extend the phrase lists rather than loosening the digit rule, and keep the math prompt byte-for-byte.
-3. Keep bumping the version on every push users are expected to install; `pip --upgrade` ignores commit changes at the same version.
+3. Before going public: create the PyPI project and trusted publisher, tag `v0.3.0`, make the repository public, then verify the `curl | sh` line from a fresh Mac account. An npm wrapper was considered and rejected: it could only shell out to this Python stack, and a JavaScript port would break the mlx-lm reproducibility the demo depends on.
 
 ## Do not
 

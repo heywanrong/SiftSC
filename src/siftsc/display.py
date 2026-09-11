@@ -101,7 +101,7 @@ def saving_words(actual: int, baseline: int) -> str:
     return "same cost"
 
 
-def _saving_icon(actual: int, baseline: int) -> str:
+def saving_icon(actual: int, baseline: int) -> str:
     if baseline - actual > 0:
         return "✅"
     if baseline - actual < 0:
@@ -129,14 +129,14 @@ def compute_chart(
     width = samples + 1
     timing = f" · {format_seconds(seconds)}" if seconds is not None else ""
     if mode == PLAIN:
-        note = f"{_saving_icon(1, samples)} this run · {saving_words(1, samples)}{timing}"
+        note = f"{saving_icon(1, samples)} this run · {saving_words(1, samples)}{timing}"
         return [
             _chart_row(PLAIN, 1, width, note),
             _chart_row(ALWAYS_SC, samples, width),
             f"{_INDENT}{POLICY_ICONS[SIFTSC]} {SIFTSC:<{_LABEL_WIDTH}} "
             "not run · /siftsc lets the router decide",
         ]
-    note = f"{_saving_icon(actual_passes, samples)} {saving_words(actual_passes, samples)}{timing}"
+    note = f"{saving_icon(actual_passes, samples)} {saving_words(actual_passes, samples)}{timing}"
     if actual_note:
         note = f"{actual_note} · {note}"
     return [
@@ -171,7 +171,7 @@ def session_chart(stats: SessionStats, *, width: int) -> list[str]:
     bar_width = max(10, min(24, width - 56))
     maximum = max(stats.always_sc_passes, stats.passes)
     spent_note = (
-        f"{_saving_icon(stats.passes, stats.always_sc_passes)} "
+        f"{saving_icon(stats.passes, stats.always_sc_passes)} "
         f"{saving_words(stats.passes, stats.always_sc_passes)}"
     )
     return [
@@ -252,3 +252,48 @@ def answer_lines(text: str, *, width: int) -> list[str]:
             )
         )
     return lines
+
+
+# --------------------------------------------------------------------- side panel
+
+
+def compact_cost_rows(actual_passes: int, samples: int, *, mode: str = SIFTSC) -> list[str]:
+    """Three short rows for a narrow panel: one cell per pass, count at the end."""
+
+    width = samples + 1
+    rows = [
+        f"⚡ plain    {bar(1, width, width)}  1",
+        f"👥 always   {bar(samples, width, width)}  {samples}",
+    ]
+    if mode == PLAIN:
+        rows.append("🧭 siftsc   not run")
+    else:
+        rows.append(f"🧭 siftsc   {bar(actual_passes, width, width)}  {actual_passes}")
+    return rows
+
+
+def compact_compare_rows(rows: list[CompareRow], *, samples: int) -> list[str]:
+    """Compare-mode rows for a narrow panel: passes and the answer each policy gave."""
+
+    width = samples + 1
+    labels = {PLAIN: "⚡ plain ", ALWAYS_SC: "👥 always", SIFTSC: "🧭 siftsc"}
+    return [
+        f"{labels.get(row.policy, row.policy):<9} {bar(row.passes, width, width)}  "
+        f"{row.passes} → {row.answer or '∅'}"
+        for row in rows
+    ]
+
+
+def compact_session_rows(stats: SessionStats) -> list[str]:
+    """Session totals for a narrow panel."""
+
+    if stats.questions == 0:
+        return ["no questions yet"]
+    votes = f"{stats.votes} {'vote' if stats.votes == 1 else 'votes'}"
+    return [
+        f"{_questions(stats.questions)} · {votes}",
+        f"spent {stats.passes} · always-SC {stats.always_sc_passes}",
+        f"{saving_icon(stats.passes, stats.always_sc_passes)} "
+        f"{saving_words(stats.passes, stats.always_sc_passes)}",
+        f"⏱️  {format_seconds(stats.seconds)} · {stats.tokens:,} tokens",
+    ]
