@@ -88,7 +88,7 @@ def test_plain_json_uses_default_hugging_face_model(monkeypatch, capsys) -> None
         "passes_saved": 4,
         "compute_reduction": 0.8,
     }
-    assert "Loading mlx-community" in captured.err
+    assert "Waking up Sifty" in captured.err
 
 
 def test_chat_menu_and_mode_switch(monkeypatch, capsys) -> None:
@@ -99,7 +99,27 @@ def test_chat_menu_and_mode_switch(monkeypatch, capsys) -> None:
 
     assert main(["chat", "--model", "fake-model"]) == 0
     output = capsys.readouterr().out
-    assert "Choose how the model should answer" in output
-    assert "[plain] passes=1" in output
+    assert "Choose a reasoning mode" in output
+    assert "[plain] one pass · passes=1" in output
     assert "saved=4 (80.0%)" in output
-    assert "[siftsc] mode=siftsc" in output
+    assert "Mode switched · 🗳️ siftsc" in output
+
+
+def test_demo_flows_into_chat_on_an_interactive_terminal(monkeypatch, capsys) -> None:
+    backend = FakeMLXBackend("fake-model")
+    monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt: "/exit")
+
+    assert main(["demo", "--model", "fake-model"]) == 0
+    output = capsys.readouterr().out
+    assert "YOUR TURN" in output
+    assert "The model stays loaded" in output
+    assert "Thanks for trying SiftSC" in output
+
+
+def test_default_public_chat_uses_reproducible_threshold() -> None:
+    args = cli.build_parser().parse_args(["chat", "--mode", "siftsc"])
+    runtime_args = cli._chat_runtime_args(args)
+
+    assert runtime_args.threshold == cli.DEMO_THRESHOLD

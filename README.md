@@ -49,7 +49,7 @@ Self-consistency can help a small model—but running it on every prompt spends 
 
 ## 🚀 One command. Two modes. Zero setup.
 
-On an Apple-Silicon Mac with Python 3.11+, this single command installs SiftSC, downloads the tested public 4-bit model, and runs the complete comparison:
+On an Apple-Silicon Mac with Python 3.11+, this single command installs SiftSC, downloads the tested public 4-bit model, runs the complete comparison, **then keeps the model loaded so you can type your own questions immediately**:
 
 ```bash
 python -m pip install --upgrade "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
@@ -85,7 +85,7 @@ python -m pip install --upgrade '.[mlx]' && siftsc demo
   <tr>
     <td width="33%" valign="top"><strong>1 · 📦 Install</strong><br>The command installs the CLI and MLX backend.</td>
     <td width="33%" valign="top"><strong>2 · 🤖 Download</strong><br>The pinned 290 MB Qwen model is fetched once, then cached locally.</td>
-    <td width="33%" valign="top"><strong>3 · 🧪 Compare</strong><br>Watch Plain, Always-SC, and SiftSC answer the same real questions.</td>
+    <td width="33%" valign="top"><strong>3 · 🧪 Compare & chat</strong><br>Watch the verified cases, then ask your own questions without reloading.</td>
   </tr>
 </table>
 
@@ -135,36 +135,54 @@ ALWAYS-SC   2,000 generation passes
 SIFTSC        415 actual generation passes
 SAVED       1,585 passes (79.2% less compute)
 QUALITY     98.7% of Always-SC accuracy retained
+✅ Reproduced: repair when voting helps; skip when voting hurts.
+
+🚀 YOUR TURN · The model stays loaded—ask your own question!
+💬 you · siftsc > _
 ```
+
+Only want the reproducible showcase for a script or CI job? Run `siftsc demo --no-chat`. Piped and non-interactive runs also exit cleanly after the showcase.
 
 <sub>Demo questions from the [GSM8K test set](https://github.com/openai/grade-school-math), released under the MIT License.</sub>
 
 <a id="chat-with-the-model"></a>
 
-## 💬 Chat with the model
+## 💬 Ask anything from the same terminal
 
-No configuration file is required. Start the cached model and choose ordinary one-pass inference or SiftSC:
+After `siftsc demo`, simply type at the `💬 you` prompt. Or start a fresh session and choose ordinary one-pass inference or SiftSC:
 
 ```bash
 siftsc chat
 ```
 
 ```text
-Choose how the model should answer:
-  1  plain   one deterministic answer
-  2  siftsc  vote only when the router escalates
-mode [2]>
+🚀 Choose a reasoning mode:
+  1  ⚡ plain   one quick deterministic answer
+  2  🗳️  siftsc  vote only when the router escalates
+✨ mode [2] >
+
+🚀 Sifty is online · Ask your own reasoning question!
+💬 you · siftsc > Henry made two stops during his 60-mile trip...
+⣹  🧠 Sifty is deciding whether to call a vote
+✨ Answer ready
+
+🤖 Sifty > ...he traveled 60 - 35 = 25 miles. Answer: 25.
+🧭 [siftsc] 🗳️ voted · passes=6
+⚡ [compute] actual=6 passes · Always-SC=5 passes · extra=1 (20.0%)
 ```
+
+The spinner animates during model loading and reasoning, while compact status messages explain what SiftSC is doing. Animation automatically switches off for pipes and CI logs; set `SIFTSC_NO_ANIMATION=1` to disable it manually.
 
 ### 🔀 Switch modes without reloading
 
 Change the inference policy at any time while the model stays in memory:
 
 ```text
-/plain     use ordinary one-pass inference
-/siftsc    turn selective voting back on
-/clear     clear the terminal
-/exit      leave the session
+/plain     ⚡ one deterministic pass
+/siftsc    🗳️ selective voting
+/clear     🧹 clear the terminal
+/help      🧭 show all commands
+/exit      👋 leave SiftSC
 ```
 
 Or select the mode before launch:
@@ -181,9 +199,9 @@ Each turn is treated as an independent reasoning question because the bundled ro
 After every answer, the CLI reports both the current request and cumulative session savings against Always-SC@5:
 
 ```text
-[siftsc] one pass · passes=1
-[compute] actual=1 pass · Always-SC=5 passes · saved=4 (80.0%)
-[session] actual=8 passes · Always-SC=15 passes · saved=7 (46.7%)
+🧭 [siftsc] 🛡️ accepted the first answer · passes=1
+⚡ [compute] actual=1 pass · Always-SC=5 passes · saved=4 (80.0%)
+📊 [session] actual=8 passes · Always-SC=15 passes · saved=7 (46.7%)
 ```
 
 ## ⚡ The difference, in two numbers
@@ -255,7 +273,7 @@ print(result.vote_counts)
 
 - The published evidence covers SC@5, Qwen-0.5B and Gemma-1B, FP16 and MLX 4-bit, two math benchmarks, and one generation seed per cell.
 - The headline result uses the paper's exact Qwen MLX-Q4 checkpoint and prompt distribution. The downloadable community conversion is provided for immediate experience, not as a claim that the published threshold transfers perfectly to every conversion.
-- The demo uses a documented, slightly more permissive routing threshold so both the paper checkpoint and public conversion reproduce the same correction. It demonstrates the mechanism; it is not an aggregate benchmark.
+- The demo and default public-model chat use a documented, slightly more permissive routing threshold so both the paper checkpoint and public conversion reproduce the same correction. They demonstrate the mechanism; they are not an aggregate benchmark.
 - Escalation performs one routing draft plus five voter samples. The paper's normalized operating-point cost compares the selected SC@5 route with always-SC@5; the CLI reports actual model passes.
 - Recalibrate before changing the model, task distribution, prompt template, decoding settings, or risk tolerance. SiftSC is not a correctness verifier and should not be the sole decision-maker in high-stakes systems.
 

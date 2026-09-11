@@ -3,10 +3,32 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol, cast
 
 from .types import Generation
+
+_FINAL_ANSWER_LINE = re.compile(
+    r"(?i)(?:final[ \t]+)?(?:the[ \t]+)?answer(?:[ \t]+is|:)[ \t]*[^\n]+"
+)
+
+
+def _completion_stop_position(text: str, stop_sequences: tuple[str, ...]) -> int | None:
+    """Find the earliest model turn boundary."""
+
+    positions = [text.find(marker) for marker in stop_sequences]
+    valid_positions = [position for position in positions if position >= 0]
+    return min(valid_positions) if valid_positions else None
+
+
+def _clean_completion_text(text: str) -> str:
+    """Hide repetition after a completed answer without changing token statistics."""
+
+    answer_match = _FINAL_ANSWER_LINE.search(text)
+    if answer_match is not None and text[answer_match.end() :].strip():
+        return text[: answer_match.end()]
+    return text
 
 
 class Backend(Protocol):
@@ -31,6 +53,10 @@ class MLXBackend:
     use_chat_template: bool = False
     revision: str | None = None
     stop_sequences: tuple[str, ...] = (
+        "<|endoftext|>",
+        "<|im_start|>user",
+        "\nHuman:",
+        "\nUser:",
         "\n\nAnswer the following",
         "\n\nQuestion:",
         "\n\nProblem:",
@@ -112,16 +138,15 @@ class MLXBackend:
             if token_id == tokenizer.eos_token_id:
                 break
             partial_text = cast(str, tokenizer.decode(output_ids))
-            positions = [partial_text.find(marker) for marker in self.stop_sequences]
-            valid_positions = [position for position in positions if position >= 0]
-            if valid_positions:
-                stop_at = min(valid_positions)
+            stop_at = _completion_stop_position(partial_text, self.stop_sequences)
+            if stop_at is not None:
                 break
             logits = model(token_array[None], cache=cache)[:, -1, :]
 
         text = cast(str, tokenizer.decode(output_ids))
         if stop_at is not None:
             text = text[:stop_at]
+        text = _clean_completion_text(text)
         return Generation(
             text=text,
             token_ids=tuple(output_ids),

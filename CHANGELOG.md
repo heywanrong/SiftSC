@@ -14,6 +14,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - A compact, friendly cartoon mascot for the project identity.
 - Platform and onboarding badges that expose the Apple-Silicon requirement before installation.
 - Private-preview connectivity, authentication, and local-clone installation guidance.
+- A continuous `siftsc demo` experience that flows from verified cases into the user's own interactive questions without reloading the model.
+- Lightweight terminal spinners, emoji route feedback, help and clear commands, and automatic non-TTY fallback.
 
 ### Changed
 
@@ -23,6 +25,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Replaced the funnel logo with the friendly Sifty mascot and moved it beside the wordmark.
 - Reworked the opening, quick start, and method explanation into compact visual cards.
 - The primary Git install command now upgrades an existing preview installation in place.
+- Public-model chat now shares the reproducible demo routing threshold and uses shorter, cleaned completions for a focused terminal experience.
 
 ## [0.1.0] - 2026-09-11
 
