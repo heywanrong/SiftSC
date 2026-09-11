@@ -20,11 +20,13 @@ class FakeMLXBackend:
     fallback: str = "42"
     confident_after: int = 6
     calls: int = 0
+    prompts: list[str] = field(default_factory=list)
 
     def load(self) -> None:
         return None
 
     def generate(self, prompt: str, **kwargs: object) -> Generation:
+        self.prompts.append(prompt)
         logits = ((0.0, 0.0),) if self.calls < self.confident_after else ((10.0, 0.0),)
         answer = self.answers[self.calls] if self.calls < len(self.answers) else self.fallback
         self.calls += 1
@@ -187,7 +189,10 @@ def test_chat_menu_and_mode_switch(monkeypatch, capsys) -> None:
 def test_chat_shows_final_answer_route_and_session_line(monkeypatch, capsys) -> None:
     backend = FakeMLXBackend("fake-model", answers=["15", "20", "15", "25", "25", "30"])
     monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
-    _scripted_input(monkeypatch, ["Henry's bike trip question", "/exit"])
+    _scripted_input(
+        monkeypatch,
+        ["Henry rode 60 miles and stopped twice; how many miles between the stops?", "/exit"],
+    )
 
     assert main(["chat", "--model", "fake-model", "--mode", "siftsc"]) == 0
     output = capsys.readouterr().out
@@ -215,7 +220,10 @@ def test_demo_flows_into_chat_and_answers_the_first_question(monkeypatch, capsys
 def test_chat_compare_mode_reuses_voters_when_a_vote_was_called(monkeypatch, capsys) -> None:
     backend = FakeMLXBackend("fake-model", answers=["15", "20", "15", "25", "25", "30"])
     monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
-    _scripted_input(monkeypatch, ["Henry's bike trip question", "/exit"])
+    _scripted_input(
+        monkeypatch,
+        ["Henry rode 60 miles and stopped twice; how many miles between the stops?", "/exit"],
+    )
 
     assert main(["chat", "--model", "fake-model", "--mode", "compare"]) == 0
     output = capsys.readouterr().out
@@ -277,6 +285,82 @@ def test_download_notice_only_when_model_is_not_cached(monkeypatch, capsys) -> N
     captured = capsys.readouterr()
     assert "Downloading" not in captured.err
     assert backend.downloads == 1
+
+
+def test_general_question_gets_one_chat_style_pass(monkeypatch, capsys) -> None:
+    backend = FakeMLXBackend("fake-model", answers=["Beijing"], confident_after=0)
+    monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
+    _scripted_input(monkeypatch, ["中国的首都在哪", "/exit"])
+
+    assert main(["chat", "--model", "fake-model", "--mode", "siftsc"]) == 0
+    output = capsys.readouterr().out
+    assert backend.calls == 1
+    assert "Natalia" not in backend.prompts[0]
+    assert backend.prompts[0].endswith("User: 中国的首都在哪\nAssistant:")
+    assert "💬 General question" in output
+    assert "The answer is Beijing." in output
+    assert "🎯 Answer" not in output
+    assert "📊 session · 1 question · 1 vs 5 passes" in output
+
+
+def test_math_prefix_forces_the_paper_route(monkeypatch, capsys) -> None:
+    backend = FakeMLXBackend("fake-model", answers=["12"], confident_after=0)
+    monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
+    _scripted_input(monkeypatch, ["/math Who are you?", "/exit"])
+
+    assert main(["chat", "--model", "fake-model", "--mode", "siftsc"]) == 0
+    output = capsys.readouterr().out
+    assert "Natalia" in backend.prompts[0]
+    assert "🎯 Answer: 12" in output
+
+
+def test_talk_prefix_forces_a_chat_style_answer(monkeypatch, capsys) -> None:
+    backend = FakeMLXBackend("fake-model", answers=["12"], confident_after=0)
+    monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
+    _scripted_input(monkeypatch, ["/talk What is 7 + 5?", "/exit"])
+
+    assert main(["chat", "--model", "fake-model", "--mode", "siftsc"]) == 0
+    output = capsys.readouterr().out
+    assert "Natalia" not in backend.prompts[0]
+    assert "💬 General question" in output
+
+
+def test_compare_mode_skips_voting_for_general_questions(monkeypatch, capsys) -> None:
+    backend = FakeMLXBackend("fake-model", answers=["Sifty"], confident_after=0)
+    monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
+    _scripted_input(monkeypatch, ["Who are you?", "/exit"])
+
+    assert main(["chat", "--model", "fake-model", "--mode", "compare"]) == 0
+    output = capsys.readouterr().out
+    assert backend.calls == 1
+    assert "Compare skipped" in output
+    assert "🔬 COMPARE ·" not in output
+
+
+def test_ask_question_type_flag_overrides_detection(monkeypatch, capsys) -> None:
+    backend = FakeMLXBackend("fake-model", answers=["12", "12"], confident_after=0)
+    monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
+
+    assert (
+        main(["ask", "What is 7 + 5?", "--model", "fake-model", "--question-type", "general"]) == 0
+    )
+    assert "💬 General question" in capsys.readouterr().out
+    assert "Natalia" not in backend.prompts[0]
+
+    assert main(["ask", "Who are you?", "--model", "fake-model", "--question-type", "math"]) == 0
+    assert "🎯 Answer: 12" in capsys.readouterr().out
+    assert "Natalia" in backend.prompts[1]
+
+
+def test_ask_json_reports_the_general_route(monkeypatch, capsys) -> None:
+    backend = FakeMLXBackend("fake-model", answers=["Beijing"], confident_after=0)
+    monkeypatch.setattr(cli, "MLXBackend", lambda *args, **kwargs: backend)
+
+    assert main(["ask", "中国的首都在哪", "--model", "fake-model", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["question_type"] == "general"
+    assert payload["passes"] == 1
+    assert payload["text"] == "The answer is Beijing."
 
 
 def test_keyboard_interrupt_while_loading_exits_cleanly(monkeypatch, capsys) -> None:

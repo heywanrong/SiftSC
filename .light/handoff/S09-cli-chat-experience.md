@@ -15,7 +15,7 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 - Project root: `/Users/wanrong/Documents/ChatGPT/硅基线程/SiftSC`
 - Remote: `https://github.com/heywanrong/SiftSC` (**PRIVATE**; do not publish without maintainer approval)
 - Default branch: `main`
-- Package version is `0.2.0`. pip does **not** reinstall a Git direct-URL requirement whose version is unchanged, so every user-visible release needs a version bump; `siftsc --version` shows the installed one.
+- Package version is `0.2.1`. pip does **not** reinstall a Git direct-URL requirement whose version is unchanged, so every user-visible release needs a version bump; `siftsc --version` shows the installed one.
 - Design note for this session: `.light/design/2026-09-11-cli-chat-experience.md`
 
 ## What changed in S09
@@ -26,12 +26,14 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 - `src/siftsc/backends.py` — `MeteredBackend` (seconds and tokens per pass), `MLXBackend.is_cached()` and `ensure_downloaded(progress)` using mlx-lm's own file patterns.
 - `src/siftsc/router.py` — `SiftSC.sample_traces()`; escalation behaviour unchanged (same seeds).
 - README: `pip -q`, new transcripts, compare and stats sections, always-SC demo answer corrected to `99`.
+- `src/siftsc/prompts.py` — `looks_like_math()` routes questions: digits, number words, quantity phrases, math signs, or Chinese quantity words take the paper prompt; everything else takes the model's chat template with a short Sifty system prompt (`MLXBackend.chat_prompt`, `render_chat_prompt`). One-off `/math` and `/talk` prefixes and `--question-type` override it. General questions are answered in one pass and never voted, in every mode.
 
 ## Verified behaviour (real model, Qwen2.5-0.5B MLX 4-bit, mlx-lm 0.31.3)
 
 - Fresh cache: `📦 One-time download … ✅ Model downloaded · 11.3s`; the native "unauthenticated requests" warning no longer garbles the spinner.
 - Demo: plain 15 → SiftSC 25 with votes 20 · 15 · 25 · 25 · 30; plain 109 kept while the forced vote returns 99 (stable across four runs).
 - Chat: Henry question voted, `🎯 Answer: 25`, six passes; compare mode reused the voters when a vote was called and drew five fresh voters otherwise; `/stats` fits in 80 columns.
+- General questions: `中国的首都在哪` → `中国的首都是北京。`, `Who are you?` → `I am a small local assistant.`, `什么是机器学习？` answered in Chinese; `小明有三个苹果，吃了一个，还剩几个？` still takes the math route.
 - Gates: ruff check, ruff format, strict mypy, 62 tests (1 opt-in local-model test skipped), `python -m build`, wheel install into a fresh venv, `siftsc demo --no-chat` from the wheel.
 
 ## Commands to reproduce
@@ -57,7 +59,7 @@ SIFTSC_VERBOSE=1 PYTHONPATH=src .venv/bin/python -m siftsc.cli ask "What is 7 + 
 ## Next steps (maximum three)
 
 1. Try the animated flow in a real macOS Terminal window (not only the pseudo-terminal) and check emoji column alignment in the user's font; adjust `POLICY_ICONS` if a glyph renders narrow.
-2. Consider a friendlier answer for non-math questions (for example a `/raw` toggle that uses the tokenizer chat template) without changing the router's calibrated math prompt.
+2. Watch for questions the router misclassifies (`looks_like_math`); extend the phrase lists rather than loosening the digit rule, and keep the math prompt byte-for-byte.
 3. Keep bumping the version on every push users are expected to install; `pip --upgrade` ignores commit changes at the same version.
 
 ## Do not

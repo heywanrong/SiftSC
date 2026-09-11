@@ -4,6 +4,18 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-11
+
+### Added
+
+- Question routing: word problems and other questions with a checkable answer keep the paper's reasoning prompt and the router; everything else is answered once through the model's own chat template, in the language of the question, with a note that no vote is taken.
+- `/math <question>` and `/talk <question>` one-off prefixes in chat, and `--question-type {auto,math,general}` for `ask` and `chat`.
+
+### Fixed
+
+- General questions such as "中国的首都在哪" were forced through the math template; the 0.5B model invented numbers and compare mode counted free-text votes.
+- The `<|im_end|>` end-of-turn marker leaked into displayed chat-style answers.
+
 ## [0.2.0] - 2026-09-11
 
 ### Added

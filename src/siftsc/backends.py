@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, cast
 
+from .prompts import GENERAL_SYSTEM_PROMPT, fallback_chat_prompt
 from .types import Generation
 
 # The file patterns mlx-lm fetches for a Hub repository; used for the cache check.
@@ -109,6 +110,27 @@ class MeteredBackend:
         return costs
 
 
+def render_chat_prompt(tokenizer: Any, question: str, system: str = GENERAL_SYSTEM_PROMPT) -> str:
+    """Render a one-turn chat prompt with the tokenizer's template when it has one."""
+
+    if hasattr(tokenizer, "apply_chat_template"):
+        try:
+            return cast(
+                str,
+                tokenizer.apply_chat_template(
+                    [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": question.strip()},
+                    ],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                ),
+            )
+        except Exception:  # a broken template must not stop the answer
+            pass
+    return fallback_chat_prompt(question, system)
+
+
 def _cache_folder_bytes(folder: Path) -> int:
     total = 0
     if not folder.exists():
@@ -148,6 +170,7 @@ class MLXBackend:
     revision: str | None = None
     stop_sequences: tuple[str, ...] = (
         "<|endoftext|>",
+        "<|im_end|>",
         "<|im_start|>user",
         "\nHuman:",
         "\nUser:",
@@ -162,6 +185,12 @@ class MLXBackend:
         """Load a local model or download a Hugging Face model into its cache."""
 
         self._load()
+
+    def chat_prompt(self, question: str, system: str = GENERAL_SYSTEM_PROMPT) -> str:
+        """Format a general question with the model's own chat template."""
+
+        _, tokenizer = self._load()
+        return render_chat_prompt(tokenizer, question, system)
 
     def _hub_repo(self) -> str | None:
         """Return the Hub repository id, or ``None`` for a local model directory."""
@@ -296,6 +325,9 @@ class MLXBackend:
             logits = model(token_array[None], cache=cache)[:, -1, :]
 
         text = cast(str, tokenizer.decode(output_ids))
+        # The end-of-turn token ends the loop before the text check runs, so look
+        # once more at the full text; this also covers markers found mid-stream.
+        stop_at = _completion_stop_position(text, self.stop_sequences)
         if stop_at is not None:
             text = text[:stop_at]
         text = _clean_completion_text(text)

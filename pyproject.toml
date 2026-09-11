@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "siftsc"
-version = "0.2.0"
+version = "0.2.1"
 description = "Selective self-consistency for small local language models"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -62,6 +62,8 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+# Chinese test questions legitimately use full-width punctuation.
+allowed-confusables = ["，", "？", "：", "（", "）"]
 
 [tool.mypy]
 python_version = "3.12"

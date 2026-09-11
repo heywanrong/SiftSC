@@ -30,7 +30,7 @@ from .display import (
     workload_chart,
 )
 from .gates import list_profiles, load_profile
-from .prompts import math_prompt
+from .prompts import fallback_chat_prompt, looks_like_math, math_prompt
 from .router import SiftSC
 from .terminal import (
     AnimatedStatus,
@@ -64,6 +64,7 @@ BENCHMARK_SIFTSC_PASSES = BENCHMARK_PROMPTS + BENCHMARK_ESCALATIONS * 5
 BENCHMARK_COMPUTE_REDUCTION = 1.0 - BENCHMARK_SIFTSC_PASSES / BENCHMARK_ALWAYS_SC_PASSES
 BENCHMARK_ACCURACY_RETENTION = 0.987
 MODES = (PLAIN, SIFTSC, COMPARE)
+QUESTION_TYPES = ("auto", "math", "general")
 EXAMPLE_QUESTION = "If 3 notebooks cost £4 each, what is the total?"
 _EXIT_COMMANDS = {"/exit", "/quit", "exit", "quit"}
 
@@ -83,6 +84,12 @@ def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument(
         "--raw-prompt", action="store_true", help="do not add the paper's math prompt"
+    )
+    parser.add_argument(
+        "--question-type",
+        choices=QUESTION_TYPES,
+        default="auto",
+        help="math: the paper's reasoning route; general: one chat-style pass (default: auto)",
     )
 
 
@@ -231,6 +238,8 @@ class _Engine:
     temperature: float
     top_p: float
     raw_prompt: bool
+    question_type: str
+    backend: Backend
     stats: SessionStats
 
     @classmethod
@@ -244,11 +253,42 @@ class _Engine:
             temperature=args.temperature,
             top_p=args.top_p,
             raw_prompt=bool(getattr(args, "raw_prompt", False)),
+            question_type=str(getattr(args, "question_type", "auto")),
+            backend=backend,
             stats=SessionStats(samples=args.samples),
         )
 
+    def kind_of(self, question: str, forced: str | None = None) -> str:
+        """Classify a question as ``math`` (paper route) or ``general`` (chat route)."""
+
+        if self.raw_prompt:
+            return "math"
+        chosen = forced or self.question_type
+        if chosen in {"math", "general"}:
+            return chosen
+        return "math" if looks_like_math(question) else "general"
+
     def prompt_for(self, question: str) -> str:
         return question if self.raw_prompt else math_prompt(question)
+
+    def chat_prompt_for(self, question: str) -> str:
+        render = getattr(self.backend, "chat_prompt", None)
+        if render is None:
+            return fallback_chat_prompt(question)
+        return str(render(question))
+
+    def general(self, question: str) -> tuple[Generation, TurnCost]:
+        """Answer a general question once, in chat style, without voting."""
+
+        generation = self.metered.generate(
+            self.chat_prompt_for(question),
+            greedy=True,
+            seed=0,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            top_p=self.top_p,
+        )
+        return generation, self._take_cost()
 
     def _take_cost(self) -> TurnCost:
         costs = self.metered.take()
@@ -385,9 +425,26 @@ def _print_compare_turn(comparison: _Comparison, engine: _Engine, *, width: int)
     _print_lines(compare_table(comparison.rows, samples=engine.samples))
 
 
-def _run_turn(engine: _Engine, mode: str, question: str, *, width: int) -> None:
+def _print_general_turn(generation: Generation, cost: TurnCost, *, mode: str, width: int) -> None:
+    _print_lines(answer_lines(generation.text, width=width))
+    print(f"\n💬 General question · answered once in chat style · {format_seconds(cost.seconds)}")
+    print("   Votes are for reasoning questions with a checkable answer · try /math <q>")
+    if mode == COMPARE:
+        print("   🔬 Compare skipped · a free-text answer cannot be counted as votes")
+
+
+def _run_turn(
+    engine: _Engine, mode: str, question: str, *, width: int, kind: str | None = None
+) -> None:
     """Answer one question in ``mode``; status goes to stderr, results to stdout."""
 
+    if engine.kind_of(question, kind) == "general":
+        with AnimatedStatus("💬 Sifty is answering", "✨ Answer ready · {elapsed}"):
+            generation, cost = engine.general(question)
+        print()
+        _print_general_turn(generation, cost, mode=mode, width=width)
+        engine.stats.record(cost, voted=False)
+        return
     if mode == PLAIN:
         with AnimatedStatus("💭 Sifty is thinking once", "✨ Answer ready · {elapsed}"):
             generation, cost = engine.plain(question)
@@ -419,6 +476,22 @@ def _run_ask(args: argparse.Namespace) -> int:
     backend = _load_backend(args.model, chat_template=args.chat_template)
     engine = _Engine.create(args, backend)
     width = terminal_width()
+    if engine.kind_of(args.prompt) == "general":
+        with AnimatedStatus("💬 Answering", "✨ Answer ready · {elapsed}"):
+            generation, cost = engine.general(args.prompt)
+        if args.json:
+            payload_general: dict[str, object] = {
+                "mode": args.mode,
+                "question_type": "general",
+                "text": generation.text,
+                "passes": 1,
+                "cost": asdict(cost),
+            }
+            print(json.dumps(payload_general, ensure_ascii=False, indent=2))
+        else:
+            print()
+            _print_general_turn(generation, cost, mode=args.mode, width=width)
+        return 0
     if args.mode == PLAIN:
         with AnimatedStatus("💭 Thinking once", "✨ Answer ready · {elapsed}"):
             generation, cost = engine.plain(args.prompt)
@@ -499,6 +572,8 @@ def _print_chat_help() -> None:
     print(f"  /plain     {POLICY_ICONS[PLAIN]} {POLICY_DESCRIPTIONS[PLAIN]}")
     print(f"  /siftsc    {POLICY_ICONS[SIFTSC]} {POLICY_DESCRIPTIONS[SIFTSC]}")
     print(f"  /compare   {POLICY_ICONS[COMPARE]} {POLICY_DESCRIPTIONS[COMPARE]}")
+    print("  /math <q>  🧮 force the paper's reasoning route for one question")
+    print("  /talk <q>  💬 force a one-pass chat-style answer for one question")
     print("  /stats     📊 show the session compute chart")
     print("  /clear     🧹 clear the screen")
     print("  /help      🧭 show these commands")
@@ -523,7 +598,8 @@ def _print_welcome(mode: str, *, launched_from_demo: bool, demo_threshold: bool)
         print(
             f"🚀 Sifty is online · mode {POLICY_ICONS[mode]} {mode} · {POLICY_DESCRIPTIONS[mode]}"
         )
-    print("💡 Best at math word problems · each turn is independent · /help lists commands")
+    print("💡 Word problems are routed and voted · other questions get one chat-style answer")
+    print("   Each turn is independent · /help lists commands")
     print(f'   Try: "{EXAMPLE_QUESTION}"')
     if demo_threshold:
         print(f"🧭 Public-model routing uses the reproducible demo threshold ({DEMO_THRESHOLD}).")
@@ -577,12 +653,19 @@ def _run_chat_session(
             _print_chat_help()
             print()
             continue
-        if command.startswith("/"):
+        forced_kind: str | None = None
+        for prefix, kind in (("/math ", "math"), ("/talk ", "general")):
+            if command.startswith(prefix):
+                forced_kind, question = kind, question[len(prefix) :].strip()
+                break
+        if question.startswith("/"):
             print(f"🤔 Unknown command {question} · type /help to see the list\n")
+            continue
+        if not question:
             continue
 
         try:
-            _run_turn(engine, mode, question, width=width)
+            _run_turn(engine, mode, question, width=width, kind=forced_kind)
         except KeyboardInterrupt:
             engine.metered.take()
             print("\n⏹  Stopped · ask another question or type /exit\n")

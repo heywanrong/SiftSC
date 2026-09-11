@@ -198,6 +198,8 @@ Change the inference policy at any time while the model stays in memory:
 /plain     ⚡ one deterministic pass, never votes
 /siftsc    🧭 votes only when the router escalates
 /compare   🔬 runs plain, always-SC and siftsc on every question
+/math <q>  🧮 force the paper's reasoning route for one question
+/talk <q>  💬 force a one-pass chat-style answer for one question
 /stats     📊 show the session compute chart
 /clear     🧹 clear the screen
 /help      🧭 show these commands
@@ -231,6 +233,23 @@ Compare mode answers with SiftSC and completes the always-SC baseline without wa
 ```
 
 The same comparison is available for a single question with `siftsc ask "..." --mode compare`.
+
+### 💬 Ask anything else, in any language
+
+The router and its bundled thresholds were calibrated on math word problems, so only questions with a checkable answer take that route. Anything else is answered once through the model's own chat template, in the language of the question, and the CLI says so instead of pretending to vote:
+
+```text
+💬 you · siftsc > 中国的首都在哪
+✨ Answer ready · 0.1s
+
+🤖 Sifty
+   中国的首都是北京。
+
+💬 General question · answered once in chat style · 0.1s
+   Votes are for reasoning questions with a checkable answer · try /math <q>
+```
+
+Force a route for one question with `/math <question>` or `/talk <question>`, or for a whole command with `--question-type math|general`.
 
 ### 📟 Watch compute savings live
 
