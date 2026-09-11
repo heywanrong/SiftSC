@@ -15,7 +15,7 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 - Project root: `/Users/wanrong/Documents/ChatGPT/硅基线程/SiftSC`
 - Remote: `https://github.com/heywanrong/SiftSC` (**PRIVATE**; do not publish without maintainer approval)
 - Default branch: `main`
-- Package version stays `0.1.0`; the Git direct-URL install identifies code by commit.
+- Package version is `0.2.0`. pip does **not** reinstall a Git direct-URL requirement whose version is unchanged, so every user-visible release needs a version bump; `siftsc --version` shows the installed one.
 - Design note for this session: `.light/design/2026-09-11-cli-chat-experience.md`
 
 ## What changed in S09
@@ -58,7 +58,7 @@ SIFTSC_VERBOSE=1 PYTHONPATH=src .venv/bin/python -m siftsc.cli ask "What is 7 + 
 
 1. Try the animated flow in a real macOS Terminal window (not only the pseudo-terminal) and check emoji column alignment in the user's font; adjust `POLICY_ICONS` if a glyph renders narrow.
 2. Consider a friendlier answer for non-math questions (for example a `/raw` toggle that uses the tokenizer chat template) without changing the router's calibrated math prompt.
-3. Decide whether to bump the package version once the private preview stabilises.
+3. Keep bumping the version on every push users are expected to install; `pip --upgrade` ignores commit changes at the same version.
 
 ## Do not
 

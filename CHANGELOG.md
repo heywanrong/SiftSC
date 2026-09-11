@@ -4,6 +4,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-11
+
 ### Added
 
 - One-command Hugging Face model download and a verified `siftsc demo` comparison.
@@ -40,6 +42,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - `siftsc demo` crashed with `AttributeError: raw_prompt` on the first question typed after the showcase.
 - Arrow keys printed escape codes at the chat prompt; line editing and history are now enabled on terminals.
 - Ctrl-C during generation stops the current answer and returns to the prompt; Ctrl-C during loading exits cleanly with status 130.
+- `pip install --upgrade` from the Git URL kept the old code because the version number had not changed; the package is now 0.2.0 and `siftsc --version` reports it.
 
 ## [0.1.0] - 2026-09-11
 

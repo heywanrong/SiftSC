@@ -67,6 +67,18 @@ def _scripted_input(monkeypatch, replies: list[str]) -> None:
     monkeypatch.setattr("builtins.input", lambda prompt: next(iterator))
 
 
+def test_version_flag_reports_the_package_version(capsys) -> None:
+    import pytest
+
+    import siftsc
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--version"])
+
+    assert excinfo.value.code == 0
+    assert capsys.readouterr().out.strip() == f"siftsc {siftsc.__version__}"
+
+
 def test_profiles_command_lists_bundled_profiles(capsys) -> None:
     assert main(["profiles"]) == 0
     output = capsys.readouterr().out

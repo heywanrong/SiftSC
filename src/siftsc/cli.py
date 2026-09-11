@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TextIO
 
+from . import __version__
 from .backends import Backend, MeteredBackend, MLXBackend
 from .display import (
     ALWAYS_SC,
@@ -90,6 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="siftsc",
         description="Let a small local model vote only when one answer is not enough.",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     chat = subparsers.add_parser("chat", help="start an interactive local reasoning chat")

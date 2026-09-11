@@ -55,7 +55,7 @@ On an Apple-Silicon Mac with Python 3.11+, this single command installs SiftSC, 
 python -m pip install -q --upgrade "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
 ```
 
-The `-q` keeps pip to warnings and errors. SiftSC itself prints only what matters: a one-line download progress on the first launch, a loading spinner, the two verified cases, and your prompt. Library chatter from the model stack is captured and shown only when loading fails or `SIFTSC_VERBOSE=1` is set.
+The same command upgrades an existing installation; `siftsc --version` shows which release you have. The `-q` keeps pip to warnings and errors. SiftSC itself prints only what matters: a one-line download progress on the first launch, a loading spinner, the two verified cases, and your prompt. Library chatter from the model stack is captured and shown only when loading fails or `SIFTSC_VERBOSE=1` is set.
 
 > [!NOTE]
 > **Private-preview requirement:** until this repository is made public, GitHub must be reachable and your Git client must be authenticated as a collaborator. This requirement disappears for the public release.

@@ -34,6 +34,18 @@ def test_benchmark_tables_have_expected_release_grid() -> None:
     assert all(int(row["n"]) == 400 for row in pooled)
 
 
+def test_package_version_is_consistent_everywhere() -> None:
+    import tomllib
+
+    import siftsc
+
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    cited = re.search(r"^version: (\S+)$", citation, re.MULTILINE)
+    assert cited is not None
+    assert pyproject["project"]["version"] == siftsc.__version__ == cited.group(1)
+
+
 def test_readme_relative_links_resolve() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     markdown_targets = re.findall(r"!?\[[^]]*\]\(([^)]+)\)", readme)
