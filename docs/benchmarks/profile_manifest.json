@@ -1,0 +1,50 @@
+[
+  {
+    "profile": "qwen05b-fp16-logistic",
+    "paper": "When Self-Consistency Hurts (ICONIP 2026, forthcoming)",
+    "cell": "qwen05b_fp16",
+    "dataset": "GSM8K-200 + MATH-500-200",
+    "n": 400,
+    "positive_rate": 0.09,
+    "source_sha256": "3f7a676b196ee5c498a64ed467fb315a7fce9eab8ce7b0f0d29bb5099616519b",
+    "threshold_selection": "5-fold out-of-fold, max skip rate subject to >=98% empirical SC accuracy retention",
+    "note": "Threshold was selected on out-of-fold scores; the serialized model was refit on all 400 prompts.",
+    "artifact_sha256": "438c0b693405f396ec90a601ef17dca916302da57fc356b8b0a4ea00d560c6b3"
+  },
+  {
+    "profile": "qwen05b-q4-confidence",
+    "paper": "When Self-Consistency Hurts (ICONIP 2026, forthcoming)",
+    "cell": "qwen05b_q4",
+    "dataset": "GSM8K-200 + MATH-500-200",
+    "n": 400,
+    "positive_rate": 0.0825,
+    "source_sha256": "f875352ab98462dcb383440426916771836359cb828f94e07390d1ff6b0e5345",
+    "threshold_selection": "5-fold out-of-fold, max skip rate subject to >=98% empirical SC accuracy retention",
+    "note": "Threshold was selected on out-of-fold scores; the serialized model was refit on all 400 prompts.",
+    "artifact_sha256": "18b3197ed2ef8667612d6ed75a7a95d3eaaa11aa414e5460150ff3cd76fbb327"
+  },
+  {
+    "profile": "gemma3-1b-fp16-logistic",
+    "paper": "When Self-Consistency Hurts (ICONIP 2026, forthcoming)",
+    "cell": "gemma3_1b_fp16",
+    "dataset": "GSM8K-200 + MATH-500-200",
+    "n": 400,
+    "positive_rate": 0.1,
+    "source_sha256": "6dfefabc2d79b6fa3be79f26f37e25e53c89f9b455515bff40039111757738b0",
+    "threshold_selection": "5-fold out-of-fold, max skip rate subject to >=98% empirical SC accuracy retention",
+    "note": "Threshold was selected on out-of-fold scores; the serialized model was refit on all 400 prompts.",
+    "artifact_sha256": "4a9cb7ac936f02e41088cbacbfbd1fc79e86ad908cc2a9088e7391b8ceffaa4f"
+  },
+  {
+    "profile": "gemma3-1b-q4-logistic",
+    "paper": "When Self-Consistency Hurts (ICONIP 2026, forthcoming)",
+    "cell": "gemma3_1b_q4",
+    "dataset": "GSM8K-200 + MATH-500-200",
+    "n": 400,
+    "positive_rate": 0.06,
+    "source_sha256": "0b817322d24ef9355b8f2d4ab9048dc3dff0fc44263d80e4f7aaed5fc7fd1e4d",
+    "threshold_selection": "5-fold out-of-fold, max skip rate subject to >=98% empirical SC accuracy retention",
+    "note": "Threshold was selected on out-of-fold scores; the serialized model was refit on all 400 prompts.",
+    "artifact_sha256": "0bda41cd595fd1ecfe10aa9d6c051b67e6a9b07e0c6fec79443edbe3c3c73ae8"
+  }
+]

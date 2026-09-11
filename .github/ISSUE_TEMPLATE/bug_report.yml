@@ -1,0 +1,30 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Remove prompts, paths, or outputs that contain private data.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SiftSC version
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Python, OS, backend, and model
+    validations:
+      required: true

@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use SiftSC, please cite the accompanying paper."
+title: "SiftSC: Selective Self-Consistency for Small Language Models"
+type: software
+version: 0.1.0
+date-released: 2026-09-11
+license: Apache-2.0
+repository-code: "https://github.com/heywanrong/SiftSC"
+authors:
+  - family-names: Yang
+    given-names: Wanrong
+preferred-citation:
+  type: conference-paper
+  title: "When Self-Consistency Hurts: The Hidden Cost of Majority Voting in Small Language Models"
+  year: 2026
+  conference:
+    name: "International Conference on Neural Information Processing"
+  authors:
+    - family-names: Yang
+      given-names: Wanrong
+    - family-names: Li
+      given-names: Lingfang
+    - family-names: Zhang
+      given-names: Jun
+    - family-names: Wojtczak
+      given-names: Dominik

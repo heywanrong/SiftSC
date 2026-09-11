@@ -1,0 +1,27 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+
+# Local model weights and generated run outputs never belong in Git.
+models/
+*.safetensors
+*.gguf
+runs/
+logs/
+
+# Local secrets and IDE state.
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/

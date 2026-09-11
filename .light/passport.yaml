@@ -1,0 +1,42 @@
+project: SiftSC
+version: 0.1.0
+source_project: ICONIP paper workspace (local, not vendored)
+source_mutated: false
+current_stage: release_audit
+stages:
+  - name: intake
+    status: PASS
+    artifacts:
+      - docs/TERMINOLOGY.md
+    evidence: paper method, source modules, cached records, local models, and GitHub account audited
+  - name: implementation
+    status: PASS
+    artifacts:
+      - src/siftsc
+      - tests
+      - examples
+      - pyproject.toml
+    evidence: unit tests, lint, strict type check, and package build
+  - name: benchmark_packaging
+    status: PASS
+    artifacts:
+      - src/siftsc/profiles
+      - docs/benchmarks
+      - docs/assets/help-harm.png
+      - docs/assets/pooled-operating-points.png
+    evidence: rebuilt from original cached records with SHA-256 provenance
+  - name: local_model_validation
+    status: PASS
+    artifacts:
+      - docs/benchmarks/local_mlx_smoke.json
+    evidence: Qwen-0.5B MLX-Q4 one-pass and forced SC@5 paths both executed
+  - name: ethics
+    status: PASS_WITH_NOTES
+    artifacts:
+      - docs/ETHICS_REVIEW.md
+    evidence: no raw prompts, completions, weights, secrets, or paper files included
+known_limitations:
+  - one generation seed per experiment cell
+  - thresholds selected and evaluated on the same out-of-fold score pool
+  - bundled profiles require matching model, precision, prompt, and decoding distribution
+next_action: complete final audit, commit, create private GitHub repository, push, and inspect CI

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "qwen05b-q4-confidence",
+  "gate_type": "confidence",
+  "threshold": 0.915,
+  "confidence_min": 0.5958401879241594,
+  "confidence_max": 0.958163346433753,
+  "provenance": {
+    "paper": "When Self-Consistency Hurts (ICONIP 2026, forthcoming)",
+    "cell": "qwen05b_q4",
+    "dataset": "GSM8K-200 + MATH-500-200",
+    "n": 400,
+    "positive_rate": 0.0825,
+    "source_sha256": "f875352ab98462dcb383440426916771836359cb828f94e07390d1ff6b0e5345",
+    "threshold_selection": "5-fold out-of-fold, max skip rate subject to >=98% empirical SC accuracy retention",
+    "note": "Threshold was selected on out-of-fold scores; the serialized model was refit on all 400 prompts."
+  }
+}

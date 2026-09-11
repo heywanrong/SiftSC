@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "name": "qwen05b-fp16-logistic",
+  "gate_type": "logistic",
+  "feature_names": [
+    "greedy_conf",
+    "greedy_top5_ent",
+    "greedy_mean_ent",
+    "greedy_n_tokens",
+    "text_n_chars",
+    "text_n_words",
+    "text_n_digits",
+    "text_n_ops",
+    "text_n_qs",
+    "text_n_commas",
+    "text_n_lines",
+    "text_n_steps"
+  ],
+  "weights": [
+    -0.031436093947792385,
+    -0.6550927038416218,
+    0.8047512913439342,
+    0.006689242439462953,
+    -0.8412750753727208,
+    0.8926683018298532,
+    0.14437316876865094,
+    0.17090737014847854,
+    0.45359832439626935,
+    -0.9143919543694782,
+    -0.9125215014150679,
+    -0.1419544402857875
+  ],
+  "intercept": -0.4657485545793316,
+  "mean": [
+    0.7865121249506555,
+    0.3567604761581837,
+    0.5435362493824842,
+    320.0,
+    215.8575,
+    38.7775,
+    8.445,
+    2.505,
+    0.745,
+    2.6525,
+    1.9525,
+    0.4825
+  ],
+  "scale": [
+    0.06536845687584557,
+    0.11033326945154723,
+    0.2138867137129232,
+    64.0,
+    146.2348870610225,
+    23.47185535380619,
+    16.39091135355201,
+    6.701117444128257,
+    0.43586121644395054,
+    6.541922022616898,
+    4.217255476017546,
+    0.7174215985039797
+  ],
+  "threshold": 0.625,
+  "provenance": {
+    "paper": "When Self-Consistency Hurts (ICONIP 2026, forthcoming)",
+    "cell": "qwen05b_fp16",
+    "dataset": "GSM8K-200 + MATH-500-200",
+    "n": 400,
+    "positive_rate": 0.09,
+    "source_sha256": "3f7a676b196ee5c498a64ed467fb315a7fce9eab8ce7b0f0d29bb5099616519b",
+    "threshold_selection": "5-fold out-of-fold, max skip rate subject to >=98% empirical SC accuracy retention",
+    "note": "Threshold was selected on out-of-fold scores; the serialized model was refit on all 400 prompts."
+  }
+}

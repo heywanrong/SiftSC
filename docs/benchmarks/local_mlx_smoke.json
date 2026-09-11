@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "ran_at": "2026-09-11T10:11:49.569932+00:00",
+  "platform": "macOS-15.7.4-arm64-arm-64bit-Mach-O",
+  "python": "3.13.12",
+  "mlx": "0.32.2",
+  "mlx_lm": "0.31.3",
+  "model": "qwen05b-q4",
+  "prompt": "What is 7 + 5?",
+  "default_profile_route": {
+    "parsed_answer": "12",
+    "used_self_consistency": false,
+    "generation_passes": 1,
+    "gate_score": 0.22868325485296037,
+    "threshold": 0.915,
+    "greedy_tokens": 19.0,
+    "vote_counts": {
+      "12": 1
+    }
+  },
+  "forced_sc_route": {
+    "parsed_answer": "12",
+    "used_self_consistency": true,
+    "generation_passes": 5,
+    "gate_score": 0.22868325485296037,
+    "threshold": 0.0,
+    "greedy_tokens": 19.0,
+    "vote_counts": {
+      "12": 5
+    }
+  },
+  "path_scrubbed": true
+}

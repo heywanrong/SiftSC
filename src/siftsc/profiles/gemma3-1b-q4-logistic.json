@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "name": "gemma3-1b-q4-logistic",
+  "gate_type": "logistic",
+  "feature_names": [
+    "greedy_conf",
+    "greedy_top5_ent",
+    "greedy_mean_ent",
+    "greedy_n_tokens",
+    "text_n_chars",
+    "text_n_words",
+    "text_n_digits",
+    "text_n_ops",
+    "text_n_qs",
+    "text_n_commas",
+    "text_n_lines",
+    "text_n_steps"
+  ],
+  "weights": [
+    0.24942952968160975,
+    0.7627699447959858,
+    -0.7246008450144764,
+    -0.256295211472457,
+    -0.2992367350932684,
+    -0.37690385742063487,
+    -0.03856940507100028,
+    0.37044340453147656,
+    1.042581159998339,
+    -0.3762157520462468,
+    0.3316950067095713,
+    -0.03301673321339715
+  ],
+  "intercept": -0.4456096012275577,
+  "mean": [
+    0.9081141393413169,
+    0.15133447215084636,
+    0.1892799461678478,
+    320.0,
+    215.8575,
+    38.7775,
+    8.445,
+    2.505,
+    0.745,
+    2.6525,
+    1.9525,
+    0.4825
+  ],
+  "scale": [
+    0.040543116080325896,
+    0.06436102393434273,
+    0.08641497271063714,
+    64.0,
+    146.2348870610225,
+    23.47185535380619,
+    16.39091135355201,
+    6.701117444128257,
+    0.43586121644395054,
+    6.541922022616898,
+    4.217255476017546,
+    0.7174215985039797
+  ],
+  "threshold": 0.515,
+  "provenance": {
+    "paper": "When Self-Consistency Hurts (ICONIP 2026, forthcoming)",
+    "cell": "gemma3_1b_q4",
+    "dataset": "GSM8K-200 + MATH-500-200",
+    "n": 400,
+    "positive_rate": 0.06,
+    "source_sha256": "0b817322d24ef9355b8f2d4ab9048dc3dff0fc44263d80e4f7aaed5fc7fd1e4d",
+    "threshold_selection": "5-fold out-of-fold, max skip rate subject to >=98% empirical SC accuracy retention",
+    "note": "Threshold was selected on out-of-fold scores; the serialized model was refit on all 400 prompts."
+  }
+}
