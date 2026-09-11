@@ -36,7 +36,9 @@ def test_benchmark_tables_have_expected_release_grid() -> None:
 
 def test_readme_relative_links_resolve() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    targets = re.findall(r"!?\[[^]]*\]\(([^)]+)\)", readme)
+    markdown_targets = re.findall(r"!?\[[^]]*\]\(([^)]+)\)", readme)
+    html_targets = re.findall(r'(?:href|src)="([^"]+)"', readme)
+    targets = markdown_targets + html_targets
     local_targets = [
         target for target in targets if "://" not in target and not target.startswith("#")
     ]
