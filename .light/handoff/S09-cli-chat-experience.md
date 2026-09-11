@@ -25,7 +25,7 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 - `src/siftsc/terminal.py` — spinner with live `update()` detail and `{elapsed}`; `QuietLibraryOutput` (file-descriptor capture with Python-level fallback); `bar`, `wrap_labeled`, `terminal_width`, `format_seconds`.
 - `src/siftsc/backends.py` — `MeteredBackend` (seconds and tokens per pass), `MLXBackend.is_cached()` and `ensure_downloaded(progress)` using mlx-lm's own file patterns.
 - `src/siftsc/router.py` — `SiftSC.sample_traces()`; escalation behaviour unchanged (same seeds).
-- README: `pip -q`, new transcripts, compare and stats sections, always-SC demo answer corrected to `99`.
+- README: condensed to roughly a third; opens with the two hard limits (Apple Silicon only, checkable answers only), keeps the test-locked strings, and ends with a Scope section. Transcripts match the 0.2.1 output.
 - `src/siftsc/prompts.py` — `looks_like_math()` routes questions: digits, number words, quantity phrases, math signs, or Chinese quantity words take the paper prompt; everything else takes the model's chat template with a short Sifty system prompt (`MLXBackend.chat_prompt`, `render_chat_prompt`). One-off `/math` and `/talk` prefixes and `--question-type` override it. General questions are answered in one pass and never voted, in every mode.
 
 ## Verified behaviour (real model, Qwen2.5-0.5B MLX 4-bit, mlx-lm 0.31.3)

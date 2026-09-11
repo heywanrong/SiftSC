@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed
+
+- README condensed to about a third of its length; the two hard limits (Apple Silicon only, checkable answers only) now open the page and a Scope section replaces the scattered caveats.
+
 ## [0.2.1] - 2026-09-11
 
 ### Added

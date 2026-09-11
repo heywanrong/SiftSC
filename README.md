@@ -18,52 +18,39 @@ No API key · No fine-tuning · No cloud inference
 
 <img alt="Demo platform: Apple Silicon only" src="https://img.shields.io/badge/Demo-Apple_Silicon_only-111827?style=for-the-badge&logo=apple&logoColor=white">
 <img alt="Bundled model: Qwen 0.5B 4-bit" src="https://img.shields.io/badge/Model-Qwen_0.5B_4--bit-0891b2?style=for-the-badge">
-<img alt="Inference modes: Plain and SiftSC" src="https://img.shields.io/badge/Modes-Plain_%7C_SiftSC-7c3aed?style=for-the-badge">
-
-<a href="#run-it-now"><img alt="Run the live demo" src="https://img.shields.io/badge/%E2%96%B6_RUN_THE_LIVE_DEMO-111827?style=for-the-badge"></a>
-&nbsp;
-<a href="#chat-with-the-model"><img alt="Start local chat" src="https://img.shields.io/badge/START_LOCAL_CHAT-0891b2?style=for-the-badge"></a>
+<img alt="Scope: checkable answers only" src="https://img.shields.io/badge/Scope-Checkable_answers_only-7c3aed?style=for-the-badge">
 
 </div>
 
 > [!IMPORTANT]
-> **The bundled demo and interactive chat currently require an Apple-Silicon Mac (M1 or newer).** Model inference uses MLX. The NumPy routing core is cross-platform through custom backends, but a built-in Linux or Windows model runner is not included yet.
+> **Two limits to know before you install.**
+>
+> 1. **Apple Silicon only.** The bundled demo and chat currently require an Apple-Silicon Mac (M1 or newer); inference uses MLX. The NumPy routing core runs anywhere through a custom backend, but a built-in Linux or Windows model runner is not included yet.
+> 2. **Only questions with a checkable answer.** SiftSC votes on answers it can count, such as the number at the end of a word problem. Its router and thresholds were calibrated on math benchmarks. Any other question is answered once by the plain model, without voting, and the CLI says so.
 
-Self-consistency can help a small model—but running it on every prompt spends five generation passes, and the majority can still overturn a correct answer. SiftSC makes that vote conditional: answer once, inspect cheap signals from the same pass, and sample five reasoning traces only when the router decides they are worth the compute.
+SiftSC answers once, reads cheap signals from that pass, and samples five more reasoning traces only when a small router says the vote is worth it. On a 400-prompt Qwen-0.5B workload it used **79.2% fewer generation passes while retaining 98.7% of always-SC accuracy**.
 
-**The result on our 400-prompt Qwen-0.5B workload: 79.2% fewer generation passes while retaining 98.7% of Always-SC accuracy.**
-
-<table>
-  <tr>
-    <td width="33%" valign="top"><strong>⚡ Spend selectively</strong><br>Use one pass by default. Pay for five voters only when the router escalates.</td>
-    <td width="33%" valign="top"><strong>🛡️ Protect good answers</strong><br>Avoid some cases where blind majority voting replaces a correct first answer.</td>
-    <td width="33%" valign="top"><strong>🔎 See every decision</strong><br>Inspect the route, votes, actual passes, and compute saved after every answer.</td>
-  </tr>
-</table>
+```text
+prompt ──→ one draft ──→ route ──┬──→ accept now      · 1 pass
+                                 └──→ sample + vote   · 6 actual passes
+```
 
 <p align="center">
   <img src="docs/assets/hero.svg" alt="SiftSC uses 79.2% fewer generation passes while retaining 98.7% of Always-SC accuracy">
 </p>
 
-<a id="run-it-now"></a>
-
-## 🚀 One command. Two modes. Zero setup.
-
-On an Apple-Silicon Mac with Python 3.11+, this single command installs SiftSC, downloads the tested public 4-bit model, runs the complete comparison, **then keeps the model loaded so you can type your own questions immediately**:
+## 🚀 Run it
 
 ```bash
 python -m pip install -q --upgrade "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
 ```
 
-The same command upgrades an existing installation; `siftsc --version` shows which release you have. The `-q` keeps pip to warnings and errors. SiftSC itself prints only what matters: a one-line download progress on the first launch, a loading spinner, the two verified cases, and your prompt. Library chatter from the model stack is captured and shown only when loading fails or `SIFTSC_VERBOSE=1` is set.
-
-> [!NOTE]
-> **Private-preview requirement:** until this repository is made public, GitHub must be reachable and your Git client must be authenticated as a collaborator. This requirement disappears for the public release.
+This installs the CLI, downloads the pinned 290 MB [`mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/tree/a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3) once, plays two verified cases, then keeps the model loaded for your own questions. The same command upgrades an existing install; `siftsc --version` shows which release you have. While the repository is private, GitHub must be reachable and your Git client authenticated as a collaborator.
 
 <details>
-<summary><strong>🧯 Seeing “Failed to connect to github.com port 443”?</strong></summary>
+<summary><strong>🧯 Install problems</strong></summary>
 
-That message is raised by `git clone` before SiftSC or its build process starts. Verify GitHub connectivity and private-repository access:
+`Failed to connect to github.com port 443` is raised by `git clone` before SiftSC starts. Check connectivity and private-repository access:
 
 ```bash
 curl -I https://github.com
@@ -72,34 +59,22 @@ gh auth setup-git
 git ls-remote https://github.com/heywanrong/SiftSC.git HEAD
 ```
 
-If `curl` cannot connect, restore the terminal's network/VPN/proxy access and retry. If `git ls-remote` prints a commit hash, the original installation command is ready to run again.
-
-Already have a local clone? Bypass GitHub completely:
+From a local clone, skip GitHub entirely:
 
 ```bash
 cd /path/to/SiftSC
 python -m pip install -q --upgrade '.[mlx]' && siftsc demo
 ```
 
+Library output during loading is hidden; `SIFTSC_VERBOSE=1` shows it and `SIFTSC_NO_ANIMATION=1` disables the spinner. `siftsc demo --no-chat` exits after the showcase for scripts and CI.
+
 </details>
 
-<table>
-  <tr>
-    <td width="33%" valign="top"><strong>1 · 📦 Install</strong><br>The command installs the CLI and MLX backend quietly.</td>
-    <td width="33%" valign="top"><strong>2 · 🤖 Download</strong><br>The pinned 290 MB Qwen model is fetched once with a live MB counter, then cached locally.</td>
-    <td width="33%" valign="top"><strong>3 · 🧪 Compare & chat</strong><br>Watch the verified cases, then ask your own questions without reloading.</td>
-  </tr>
-</table>
+## 🧪 What the demo shows
 
-The bundled model is [`mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/tree/a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3). Its tested revision is pinned, so every later run starts from the same local checkpoint.
+Real outputs from the public model with `mlx-lm 0.31.3`. The command pins the questions, seed and threshold, and fails loudly if the behaviour stops reproducing.
 
-### 🧪 One model, two decisions: repair and protect
-
-These are real outputs from the public model with `mlx-lm 0.31.3`, not mocked transcripts. The command pins the questions, decoding seed, and demo threshold—and fails loudly if the behavior no longer reproduces.
-
-#### 🛠️ Repair: vote when one answer is shaky
-
-Plain inference latches onto a distractor. SiftSC escalates, and independent traces recover the correct two-step calculation:
+**Repair.** Plain inference latches onto a distractor; the router calls a vote and three of five traces recover `60 − 15 − 20 = 25`.
 
 ```text
 🗳️  CASE 1 · VOTE WHEN IT HELPS
@@ -112,11 +87,7 @@ PLAIN      15  ✗   1 pass
 SIFTSC     25  ✓   6 passes · votes 20 · 15 · 25 · 25 · 30
 ```
 
-The second stop is at mile `60 - 15 = 45`; the distance between stops is `45 - 20 = 25`. Three of five independent traces reach `25`, so it wins the vote.
-
-#### 🛡️ Protect: stop when voting would hurt
-
-Here the first answer is already right. Always-SC votes itself into the wrong answer; SiftSC knows when to stop:
+**Protect.** The first answer is already right and blind voting would overturn it, so the router skips the vote.
 
 ```text
 🛡️  CASE 2 · SKIP WHEN VOTING HURTS
@@ -131,11 +102,7 @@ SIFTSC     109  ✓   1 pass · vote skipped
    🧭 siftsc     █░░░░░   1 pass   ✅ saved 4 (80.0%)
 ```
 
-One chart cell is one generation pass, so bar length is the compute cost. The losing always-SC answer can differ between machines; what is checked is that the blind vote loses the correct `109` while SiftSC keeps it.
-
-#### 📉 See the compute drop
-
-The demo ends with the measured workload-level result—not a theoretical estimate:
+**Measured workload.** One chart cell is one generation pass.
 
 ```text
 📉 MEASURED WORKLOAD · 400 PROMPTS
@@ -143,43 +110,20 @@ The demo ends with the measured workload-level result—not a theoretical estima
    🧭 siftsc     ███████░░░░░░░░░░░░░░░░░░░░░░░░░    415 passes
    ✅ saved 1,585 passes · 79.2% less compute
    🎯 98.7% of always-SC accuracy retained
-✅ Reproduced: repair when voting helps; skip when voting hurts.
-
-🚀 YOUR TURN · The model stays loaded, ask your own question!
-💡 Best at math word problems · each turn is independent · /help lists commands
-💬 you · siftsc > _
 ```
 
-Only want the reproducible showcase for a script or CI job? Run `siftsc demo --no-chat`. Piped and non-interactive runs also exit cleanly after the showcase.
+<sub>Demo questions from the [GSM8K test set](https://github.com/openai/grade-school-math), MIT License. The losing always-SC answer can differ between machines; what is checked is that the blind vote loses `109` and SiftSC keeps it.</sub>
 
-<sub>Demo questions from the [GSM8K test set](https://github.com/openai/grade-school-math), released under the MIT License.</sub>
+## 💬 Chat
 
-<a id="chat-with-the-model"></a>
-
-## 💬 Ask anything from the same terminal
-
-After `siftsc demo`, simply type at the `💬 you` prompt. Or start a fresh session and choose ordinary one-pass inference or SiftSC:
-
-```bash
-siftsc chat
-```
+After the demo, type at the `💬 you` prompt, or start fresh with `siftsc chat`. Every answer ends with the route the router took and a compute chart:
 
 ```text
-🚀 Choose a reasoning mode:
-  1  ⚡ plain     one deterministic pass, never votes
-  2  🧭 siftsc    votes only when the router escalates
-  3  🔬 compare   runs plain, always-SC and siftsc on every question
-✨ mode [2] >
-
-🚀 Sifty is online · mode 🧭 siftsc · votes only when the router escalates
 💬 you · siftsc > Henry made two stops during his 60-mile bike trip...
-⣹  🧠 Sifty is deciding whether to call a vote
 ✨ Answer ready · 2.9s
 
 🤖 Sifty
-   Let's add the miles of the first and second stops: 20 + 15 = 35. That means
-   he traveled 35 miles between the first and second stops. That means he
-   traveled 60 - 35 = 25 miles between the first and second stops. Answer: 25.
+   ... he traveled 60 - 35 = 25 miles between the first and second stops. Answer: 25.
 
 🎯 Answer: 25 · 🗳️ vote called · votes 20 · 15 · 25 · 25 · 30 · 6 passes · 2.9s
    ⚡ plain      █░░░░░   1 pass   (the draft said 15)
@@ -188,59 +132,19 @@ siftsc chat
 📊 session · 2 questions · 7 vs 10 passes · saved 3 (30.0%) vs always-SC
 ```
 
-Every answer ends with a highlighted `🎯 Answer` line, the route the router took, and a compute chart in which one cell is one generation pass. The spinner animates during model loading and reasoning; animation switches off for pipes and CI logs, or set `SIFTSC_NO_ANIMATION=1`. Arrow keys and history work at the prompt, and Ctrl-C stops the current answer without leaving the session.
+| Command | What it does |
+|---|---|
+| `/siftsc` | vote only when the router escalates (default) |
+| `/plain` | one deterministic pass, never votes |
+| `/compare` | run plain, always-SC and siftsc on the same question; shows each answer, its passes and seconds |
+| `/stats` | draw the session compute chart |
+| `/math <q>` · `/talk <q>` | force the reasoning route, or a one-pass chat answer, for one question |
+| `/help` · `/clear` · `/exit` | the usual |
 
-### 🔀 Switch modes without reloading
-
-Change the inference policy at any time while the model stays in memory:
-
-```text
-/plain     ⚡ one deterministic pass, never votes
-/siftsc    🧭 votes only when the router escalates
-/compare   🔬 runs plain, always-SC and siftsc on every question
-/math <q>  🧮 force the paper's reasoning route for one question
-/talk <q>  💬 force a one-pass chat-style answer for one question
-/stats     📊 show the session compute chart
-/clear     🧹 clear the screen
-/help      🧭 show these commands
-/exit      👋 leave SiftSC
-```
-
-Or select the mode before launch:
-
-```bash
-siftsc chat --mode plain
-siftsc chat --mode siftsc
-siftsc chat --mode compare
-```
-
-Each turn is treated as an independent reasoning question because the bundled router was calibrated on math reasoning, not open-ended conversation history.
-
-### 🔬 Compare all three policies on one question
-
-Compare mode answers with SiftSC and completes the always-SC baseline without waste: plain inference is exactly SiftSC's greedy draft, so it is never rerun, and when SiftSC called a vote the same five voters are the always-SC result. Every policy row shows its answer, its passes, and its measured time:
-
-```text
-💬 you · compare > A shop sold 18 books on Monday and twice as many on Tuesday. How many books in total?
-✨ Comparison ready · 2.9s
-
-🎯 Answer: 54 · 🛡️ first answer accepted · 1 pass · 2.9s for all three policies
-🔬 COMPARE · one question, three policies
-   ⚡ plain      █░░░░░  1 pass     0.6s  → 54
-   👥 always-SC  █████░  5 passes   2.3s  → 54   votes 72 · 54 · 36 · 54 · 54
-   🧭 siftsc     █░░░░░  1 pass     0.6s  → 54   🛡️ vote skipped
-   🤝 all three policies agree
-```
-
-The same comparison is available for a single question with `siftsc ask "..." --mode compare`.
-
-### 💬 Ask anything else, in any language
-
-The router and its bundled thresholds were calibrated on math word problems, so only questions with a checkable answer take that route. Anything else is answered once through the model's own chat template, in the language of the question, and the CLI says so instead of pretending to vote:
+Questions without a checkable answer are answered once, in the language of the question, and never voted:
 
 ```text
 💬 you · siftsc > 中国的首都在哪
-✨ Answer ready · 0.1s
 
 🤖 Sifty
    中国的首都是北京。
@@ -249,63 +153,17 @@ The router and its bundled thresholds were calibrated on math word problems, so 
    Votes are for reasoning questions with a checkable answer · try /math <q>
 ```
 
-Force a route for one question with `/math <question>` or `/talk <question>`, or for a whole command with `--question-type math|general`.
+One question from the shell: `siftsc ask "..."` with `--mode plain|siftsc|compare`, `--question-type math|general`, `--json`, or `--model /path/to/mlx/model`. Arrow keys and history work at the prompt; Ctrl-C stops the current answer.
 
-### 📟 Watch compute savings live
+## 📏 Scope
 
-After every answer the CLI prints a one-line session total, and `/stats` draws the whole session:
+- **Checkable answers only.** Voting counts parsed answers such as numbers or short strings. Open-ended text has no majority to count, so SiftSC does not apply to it.
+- **The evidence is math.** SC@5 on GSM8K and MATH-500 with Qwen-0.5B and Gemma-1B, FP16 and MLX 4-bit, one generation seed per cell. The demo and public-model chat use a documented, slightly more permissive threshold (`0.84`) so the public checkpoint reproduces the correction; they show the mechanism, not the aggregate benchmark.
+- **Thresholds are distribution-specific.** Recalibrate before changing the model, quantization, task, prompt template or decoding. `siftsc.calibration.fit_logistic` is the starting point for a new profile.
+- **Not a correctness verifier.** A skipped vote means the router expected no gain, not that the answer is right. Do not make it the sole decision-maker in high-stakes settings.
+- **Honest accounting.** Passes are the transparent compute proxy: one routing draft per prompt plus five fresh voters per escalation, so an escalated request costs six passes. Seconds and tokens are measured on your machine.
 
-```text
-📊 SESSION · 3 questions · 1 vote called
-   ⚡ plain      ██████░░░░░░░░░░░░░░░░░░     3 passes if all used one pass
-   👥 always-SC  ████████████████████████    15 passes if all voted
-   🧭 spent      █████████████████████░░░    13 passes ✅ saved 2 (13.3%)
-   ⏱️  5.9s of generation · 1,170 tokens
-```
-
-Passes are the transparent compute proxy from the paper; seconds and tokens are measured on your machine.
-
-## ⚡ The difference, in two numbers
-
-| On Qwen2.5-0.5B MLX 4-bit | Always-SC@5 | SiftSC |
-|---|---:|---:|
-| Actual generation passes over 400 prompts | 2,000 | **415 · 79.2% fewer** |
-| Accuracy relative to always-SC | 100% reference | **98.7% retained** |
-
-The pass count uses conservative, auditable accounting: one routing draft for every prompt, plus five fresh voters for each of the three escalated prompts. The policy was measured on 400 pooled GSM8K and MATH-500 prompts; its threshold was selected out-of-fold and was not chosen on either demo question. Full confidence intervals, per-model results, checksums, and caveats live in [the benchmark report](docs/benchmarks/RESULTS.md), away from the quick-start path.
-
-## 🧭 How SiftSC works
-
-<table>
-  <tr>
-    <td width="33%" valign="top"><strong>① ✍️ Draft once</strong><br>Generate one deterministic answer and reuse signals already produced in that pass.</td>
-    <td width="33%" valign="top"><strong>② 🧭 Route cheaply</strong><br>A tiny router adds a few prompt features. It never calls another language model.</td>
-    <td width="33%" valign="top"><strong>③ 🗳️ Vote only if needed</strong><br>Easy prompts stop. Escalated prompts use five fresh traces matching SC@5.</td>
-  </tr>
-</table>
-
-```text
-prompt ──→ one draft ──→ route ──┬──→ accept now      · 1 pass
-                                 └──→ sample + vote   · 6 actual passes
-```
-
-### ⌨️ Ask one question
-
-Skip the interactive session and compare either policy directly:
-
-```bash
-siftsc ask "If 3 notebooks cost £4 each, what is the total?"
-siftsc ask "If 3 notebooks cost £4 each, what is the total?" --mode plain
-siftsc ask "If 3 notebooks cost £4 each, what is the total?" --mode compare --json
-```
-
-### 🧱 Bring your own local model
-
-Point the CLI at any compatible local MLX directory instead of the default Hugging Face model:
-
-```bash
-siftsc chat --model /absolute/path/to/model
-```
+Details: [benchmark report](docs/benchmarks/RESULTS.md) · [ethics review](docs/ETHICS_REVIEW.md) · [profile provenance](docs/benchmarks/profile_manifest.json) · [terminology](docs/TERMINOLOGY.md).
 
 <details>
 <summary><strong>🐍 Python API</strong></summary>
@@ -326,33 +184,17 @@ print(result.used_self_consistency, result.generation_passes)
 print(result.vote_counts)
 ```
 
-`SiftResult` preserves the route, every generation, parsed answers, vote counts, and the actual number of model passes for auditing.
-
-</details>
-
-<details>
-<summary><strong>🔬 Research scope and honest limitations</strong></summary>
-
-- The published evidence covers SC@5, Qwen-0.5B and Gemma-1B, FP16 and MLX 4-bit, two math benchmarks, and one generation seed per cell.
-- The headline result uses the paper's exact Qwen MLX-Q4 checkpoint and prompt distribution. The downloadable community conversion is provided for immediate experience, not as a claim that the published threshold transfers perfectly to every conversion.
-- The demo and default public-model chat use a documented, slightly more permissive routing threshold so both the paper checkpoint and public conversion reproduce the same correction. They demonstrate the mechanism; they are not an aggregate benchmark.
-- Escalation performs one routing draft plus five voter samples. The paper's normalized operating-point cost compares the selected SC@5 route with always-SC@5; the CLI reports actual model passes.
-- Recalibrate before changing the model, task distribution, prompt template, decoding settings, or risk tolerance. SiftSC is not a correctness verifier and should not be the sole decision-maker in high-stakes systems.
-
-See [benchmark details](docs/benchmarks/RESULTS.md), [ethics review](docs/ETHICS_REVIEW.md), and [profile provenance](docs/benchmarks/profile_manifest.json).
+`SiftResult` keeps the route, every generation, parsed answers, vote counts and the actual number of passes. The core depends only on NumPy; MLX loads lazily, so a custom backend can use the router on other platforms.
 
 </details>
 
 ## 🧰 Develop
 
 ```bash
-git clone https://github.com/heywanrong/SiftSC.git
-cd SiftSC
+git clone https://github.com/heywanrong/SiftSC.git && cd SiftSC
 python -m pip install -e '.[dev,mlx]'
 ruff check . && mypy src/siftsc && pytest
 ```
-
-The core router depends only on NumPy. MLX is loaded lazily, so custom backends can use the routing package on other platforms.
 
 ## 📚 Citation
 
