@@ -60,6 +60,12 @@ stages:
       - README.md
       - docs/assets/logo.png
     evidence: compact transparent logo added; README hierarchy polished around one command, two real behaviors, and two headline numbers
+  - name: onboarding_clarity
+    status: PASS
+    artifacts:
+      - README.md
+      - docs/assets/logo.png
+    evidence: cartoon mascot moved beside the wordmark; Apple-Silicon limitation is disclosed above the fold; badges and cards clarify install, modes, benefits, and method
 known_limitations:
   - one generation seed per experiment cell
   - thresholds selected and evaluated on the same out-of-fold score pool

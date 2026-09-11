@@ -44,3 +44,9 @@ def test_readme_relative_links_resolve() -> None:
     ]
     missing = [target for target in local_targets if not (ROOT / target).is_file()]
     assert missing == []
+
+
+def test_readme_discloses_bundled_demo_platform() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "currently require an Apple-Silicon Mac" in readme
+    assert "built-in Linux or Windows model runner is not included yet" in readme

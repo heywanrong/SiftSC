@@ -1,33 +1,53 @@
 <div align="center">
 
-<img src="docs/assets/logo.png" alt="SiftSC logo: five reasoning paths filtered into one answer" width="132">
-
-# SiftSC
+<h1>
+  <img src="docs/assets/logo.png" alt="Sifty, the winking SiftSC mascot" width="92" align="absmiddle">
+  &nbsp;SiftSC
+</h1>
 
 ### Think once. Vote only when it helps.
 
 **Selective self-consistency for small, local language models.**<br>
 No API key · No fine-tuning · No cloud inference
 
-[![CI](https://github.com/heywanrong/SiftSC/actions/workflows/ci.yml/badge.svg)](https://github.com/heywanrong/SiftSC/actions/workflows/ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/)
-[![Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-7c3aed)](LICENSE)
+<a href="https://github.com/heywanrong/SiftSC/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/heywanrong/SiftSC/ci.yml?branch=main&style=flat-square&label=CI"></a>
+<a href="https://www.python.org/"><img alt="Python 3.11 or newer" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white"></a>
+<a href="LICENSE"><img alt="Apache 2.0 license" src="https://img.shields.io/badge/License-Apache_2.0-7c3aed?style=flat-square"></a>
+
+<br>
+
+<img alt="Demo platform: Apple Silicon only" src="https://img.shields.io/badge/Demo-Apple_Silicon_only-111827?style=for-the-badge&logo=apple&logoColor=white">
+<img alt="Bundled model: Qwen 0.5B 4-bit" src="https://img.shields.io/badge/Model-Qwen_0.5B_4--bit-0891b2?style=for-the-badge">
+<img alt="Inference modes: Plain and SiftSC" src="https://img.shields.io/badge/Modes-Plain_%7C_SiftSC-7c3aed?style=for-the-badge">
 
 <a href="#run-it-now"><img alt="Run the live demo" src="https://img.shields.io/badge/%E2%96%B6_RUN_THE_LIVE_DEMO-111827?style=for-the-badge"></a>
 &nbsp;
 <a href="#chat-with-the-model"><img alt="Start local chat" src="https://img.shields.io/badge/START_LOCAL_CHAT-0891b2?style=for-the-badge"></a>
 
-![SiftSC uses fewer generation passes while retaining self-consistency accuracy](docs/assets/hero.svg)
-
 </div>
+
+> [!IMPORTANT]
+> **The bundled demo and interactive chat currently require an Apple-Silicon Mac (M1 or newer).** Model inference uses MLX. The NumPy routing core is cross-platform through custom backends, but a built-in Linux or Windows model runner is not included yet.
 
 Self-consistency can help a small model—but running it on every prompt spends five generation passes, and the majority can still overturn a correct answer. SiftSC makes that vote conditional: answer once, inspect cheap signals from the same pass, and sample five reasoning traces only when the router decides they are worth the compute.
 
 **The result on our 400-prompt Qwen-0.5B workload: 79.2% fewer generation passes while retaining 98.7% of Always-SC accuracy.**
 
+<table>
+  <tr>
+    <td width="33%" valign="top"><strong>⚡ Spend selectively</strong><br>Use one pass by default. Pay for five voters only when the router escalates.</td>
+    <td width="33%" valign="top"><strong>🛡️ Protect good answers</strong><br>Avoid some cases where blind majority voting replaces a correct first answer.</td>
+    <td width="33%" valign="top"><strong>🔎 See every decision</strong><br>Inspect the route, votes, actual passes, and compute saved after every answer.</td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/assets/hero.svg" alt="SiftSC uses 79.2% fewer generation passes while retaining 98.7% of Always-SC accuracy">
+</p>
+
 <a id="run-it-now"></a>
 
-## 🚀 Run it now
+## 🚀 One command. Two modes. Zero setup.
 
 On an Apple-Silicon Mac with Python 3.11+, this single command installs SiftSC, downloads the tested public 4-bit model, and runs the complete comparison:
 
@@ -35,7 +55,15 @@ On an Apple-Silicon Mac with Python 3.11+, this single command installs SiftSC, 
 python -m pip install "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
 ```
 
-The first run downloads [`mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/tree/a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3) (about 290 MB). The tested revision is pinned and cached, so later runs start locally.
+<table>
+  <tr>
+    <td width="33%" valign="top"><strong>1 · 📦 Install</strong><br>The command installs the CLI and MLX backend.</td>
+    <td width="33%" valign="top"><strong>2 · 🤖 Download</strong><br>The pinned 290 MB Qwen model is fetched once, then cached locally.</td>
+    <td width="33%" valign="top"><strong>3 · 🧪 Compare</strong><br>Watch Plain, Always-SC, and SiftSC answer the same real questions.</td>
+  </tr>
+</table>
+
+The bundled model is [`mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/tree/a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3). Its tested revision is pinned, so every later run starts from the same local checkpoint.
 
 ### 🧪 One model, two decisions: repair and protect
 
@@ -143,15 +171,18 @@ The pass count uses conservative, auditable accounting: one routing draft for ev
 
 ## 🧭 How SiftSC works
 
-```text
-prompt → one deterministic draft → lightweight router
-                                      ├─ accept the draft
-                                      └─ sample 5 traces → parse → vote
-```
+<table>
+  <tr>
+    <td width="33%" valign="top"><strong>① ✍️ Draft once</strong><br>Generate one deterministic answer and reuse signals already produced in that pass.</td>
+    <td width="33%" valign="top"><strong>② 🧭 Route cheaply</strong><br>A tiny router adds a few prompt features. It never calls another language model.</td>
+    <td width="33%" valign="top"><strong>③ 🗳️ Vote only if needed</strong><br>Easy prompts stop. Escalated prompts use five fresh traces matching SC@5.</td>
+  </tr>
+</table>
 
-1. **Draft once.** Generate one deterministic answer and reuse statistics already produced in that pass.
-2. **Route cheaply.** A tiny router combines those statistics with a few prompt features; it never calls another language model.
-3. **Vote selectively.** Easy prompts end after one pass. Escalated prompts use five fresh sampled traces, matching the paper's SC@5 protocol.
+```text
+prompt ──→ one draft ──→ route ──┬──→ accept now      · 1 pass
+                                 └──→ sample + vote   · 6 actual passes
+```
 
 ### ⌨️ Ask one question
 

@@ -11,13 +11,16 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Per-request and cumulative generation-pass savings relative to Always-SC@5.
 - A second verified demo showing SiftSC preserving an answer that blind voting changes.
 - A product-first README focused on one compute result and one quality result.
-- A compact project logo that visualizes five reasoning paths being filtered into one answer.
+- A compact, friendly cartoon mascot for the project identity.
+- Platform and onboarding badges that expose the Apple-Silicon requirement before installation.
 
 ### Changed
 
 - Escalated requests now use five fresh sampled voters, exactly matching the paper's SC@5 protocol.
 - MLX CLI commands default to the public 290 MB Qwen2.5-0.5B 4-bit checkpoint.
 - README navigation and section hierarchy now use restrained emoji cues for faster scanning.
+- Replaced the funnel logo with the friendly Sifty mascot and moved it beside the wordmark.
+- Reworked the opening, quick start, and method explanation into compact visual cards.
 
 ## [0.1.0] - 2026-09-11
 
