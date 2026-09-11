@@ -2,7 +2,7 @@ project: SiftSC
 version: 0.1.0
 source_project: ICONIP paper workspace (local, not vendored)
 source_mutated: false
-current_stage: release_audit
+current_stage: complete
 stages:
   - name: intake
     status: PASS
@@ -35,8 +35,13 @@ stages:
     artifacts:
       - docs/ETHICS_REVIEW.md
     evidence: no raw prompts, completions, weights, secrets, or paper files included
+  - name: private_release
+    status: PASS
+    artifacts:
+      - https://github.com/heywanrong/SiftSC
+    evidence: private repository created; Python 3.11, 3.12, and 3.13 CI matrix passed on GitHub Actions run 34588635034
 known_limitations:
   - one generation seed per experiment cell
   - thresholds selected and evaluated on the same out-of-fold score pool
   - bundled profiles require matching model, precision, prompt, and decoding distribution
-next_action: complete final audit, commit, create private GitHub repository, push, and inspect CI
+next_action: maintainer review of the private preview
