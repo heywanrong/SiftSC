@@ -1,6 +1,6 @@
 """SiftSC: selective self-consistency for small language models."""
 
-from .backends import Backend, MLXBackend
+from .backends import Backend, GenerationCost, MeteredBackend, MLXBackend
 from .calibration import FittedLogisticProfile, fit_logistic
 from .gates import ConfidenceGate, LogisticGate, list_profiles, load_profile
 from .prompts import math_prompt
@@ -14,8 +14,10 @@ __all__ = [
     "FittedLogisticProfile",
     "GateDecision",
     "Generation",
+    "GenerationCost",
     "LogisticGate",
     "MLXBackend",
+    "MeteredBackend",
     "SiftResult",
     "SiftSC",
     "fit_logistic",

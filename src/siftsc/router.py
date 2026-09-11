@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from .backends import Backend
 from .features import extract_features
 from .gates import Gate
-from .types import GateDecision, SiftResult
+from .types import GateDecision, Generation, SiftResult
 from .voting import AnswerParser, parse_answer, plurality_vote
 
 
@@ -65,21 +65,7 @@ class SiftSC:
                 generation_passes=1,
             )
 
-        # Match the paper's SC@N protocol exactly: the gate observes one greedy
-        # draft, then N independent stochastic traces vote when escalation is
-        # requested. Keeping the draft out of the vote also makes offline paper
-        # examples reproducible in the packaged tool.
-        samples = [
-            self.backend.generate(
-                prompt,
-                greedy=False,
-                seed=self.seed * 10_000 + index + 1,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                top_p=self.top_p,
-            )
-            for index in range(self.samples)
-        ]
+        samples = self.sample_traces(prompt)
         winner, parsed, counts = plurality_vote(samples, self.parser)
         return SiftResult(
             text=winner.text,
@@ -89,4 +75,26 @@ class SiftSC:
             generations=(greedy, *samples),
             vote_counts=counts,
             generation_passes=1 + len(samples),
+        )
+
+    def sample_traces(self, prompt: str) -> tuple[Generation, ...]:
+        """Draw the fresh stochastic voter traces used when SC is invoked.
+
+        This matches the paper's SC@N protocol exactly: the gate observes one
+        greedy draft, then N independent stochastic traces vote. Keeping the draft
+        out of the vote also makes offline paper examples reproducible in the
+        packaged tool. Compare mode calls this directly so an always-SC baseline
+        uses the very same seeds.
+        """
+
+        return tuple(
+            self.backend.generate(
+                prompt,
+                greedy=False,
+                seed=self.seed * 10_000 + index + 1,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
+            )
+            for index in range(self.samples)
         )

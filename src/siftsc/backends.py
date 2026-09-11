@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import fnmatch
 import math
 import re
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 from .types import Generation
+
+# The file patterns mlx-lm fetches for a Hub repository; used for the cache check.
+HF_ALLOW_PATTERNS: tuple[str, ...] = (
+    "*.json",
+    "model*.safetensors",
+    "*.py",
+    "tokenizer.model",
+    "*.tiktoken",
+    "tiktoken.model",
+    "*.txt",
+    "*.jsonl",
+    "*.jinja",
+)
+
+ProgressCallback = Callable[[int, int | None], None]
 
 _FINAL_ANSWER_LINE = re.compile(
     r"(?i)(?:final[ \t]+)?(?:the[ \t]+)?answer(?:[ \t]+is|:)[ \t]*[^\n]+"
@@ -44,6 +64,80 @@ class Backend(Protocol):
     ) -> Generation: ...
 
 
+@dataclass(frozen=True, slots=True)
+class GenerationCost:
+    """Wall-clock seconds and generated tokens for one generation pass."""
+
+    seconds: float
+    tokens: int
+
+
+@dataclass(slots=True)
+class MeteredBackend:
+    """Record the measured cost of every pass without changing any output."""
+
+    backend: Backend
+    _costs: list[GenerationCost] = field(default_factory=list, init=False, repr=False)
+
+    def generate(
+        self,
+        prompt: str,
+        *,
+        greedy: bool,
+        seed: int,
+        max_tokens: int,
+        temperature: float,
+        top_p: float,
+    ) -> Generation:
+        started = time.perf_counter()
+        generation = self.backend.generate(
+            prompt,
+            greedy=greedy,
+            seed=seed,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+        )
+        elapsed = time.perf_counter() - started
+        self._costs.append(GenerationCost(seconds=elapsed, tokens=len(generation.token_ids)))
+        return generation
+
+    def take(self) -> list[GenerationCost]:
+        """Return the costs recorded since the previous call and reset the record."""
+
+        costs, self._costs = self._costs, []
+        return costs
+
+
+def _cache_folder_bytes(folder: Path) -> int:
+    total = 0
+    if not folder.exists():
+        return 0
+    for path in folder.rglob("*"):
+        try:
+            if path.is_file() and not path.is_symlink():
+                total += path.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def _remote_model_bytes(repo: str, revision: str | None) -> int | None:
+    """Best-effort total size of the files mlx-lm will download."""
+
+    try:
+        from huggingface_hub import HfApi
+
+        info = HfApi().model_info(repo, revision=revision, files_metadata=True)
+    except Exception:  # size is optional; the download proceeds without it
+        return None
+    total = 0
+    for sibling in info.siblings or []:
+        if any(fnmatch.fnmatch(sibling.rfilename, pattern) for pattern in HF_ALLOW_PATTERNS):
+            total += sibling.size or 0
+    return total or None
+
+
 @dataclass(slots=True)
 class MLXBackend:
     """Local Apple-Silicon inference with top-logit capture for gating."""
@@ -68,6 +162,64 @@ class MLXBackend:
         """Load a local model or download a Hugging Face model into its cache."""
 
         self._load()
+
+    def _hub_repo(self) -> str | None:
+        """Return the Hub repository id, or ``None`` for a local model directory."""
+
+        if Path(self.model_path).exists() or "/" not in self.model_path:
+            return None
+        return self.model_path
+
+    def is_cached(self) -> bool:
+        """Return whether every file mlx-lm needs is already in the local Hub cache."""
+
+        repo = self._hub_repo()
+        if repo is None:
+            return True
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError:
+            return True
+        try:
+            snapshot_download(
+                repo,
+                revision=self.revision,
+                allow_patterns=list(HF_ALLOW_PATTERNS),
+                local_files_only=True,
+            )
+        except Exception:  # any cache miss means a download is needed
+            return False
+        return True
+
+    def ensure_downloaded(self, progress: ProgressCallback | None = None) -> None:
+        """Download the model files into the Hub cache, reporting bytes as they land."""
+
+        repo = self._hub_repo()
+        if repo is None:
+            return
+        from huggingface_hub import constants, snapshot_download
+
+        total = _remote_model_bytes(repo, self.revision)
+        folder = Path(constants.HF_HUB_CACHE) / f"models--{repo.replace('/', '--')}"
+        stop = threading.Event()
+
+        def poll() -> None:
+            assert progress is not None
+            while not stop.wait(0.5):
+                progress(_cache_folder_bytes(folder), total)
+
+        thread: threading.Thread | None = None
+        if progress is not None:
+            thread = threading.Thread(target=poll, daemon=True)
+            thread.start()
+        try:
+            snapshot_download(repo, revision=self.revision, allow_patterns=list(HF_ALLOW_PATTERNS))
+        finally:
+            stop.set()
+            if thread is not None:
+                thread.join(timeout=1.0)
+        if progress is not None:
+            progress(_cache_folder_bytes(folder), total)
 
     def _load(self) -> tuple[Any, Any]:
         if self._model is None or self._tokenizer is None:

@@ -79,8 +79,17 @@ stages:
       - src/siftsc/terminal.py
       - README.md
     evidence: demo continues into a reusable question loop on TTYs; local Qwen test voted on the Henry prompt, returned 25, reported six passes, and removed repeated model-turn text
+  - name: cli_chat_experience
+    status: PASS
+    artifacts:
+      - src/siftsc/cli.py
+      - src/siftsc/display.py
+      - src/siftsc/terminal.py
+      - src/siftsc/backends.py
+      - README.md
+    evidence: pseudo-terminal runs at 80 columns with a fresh Hugging Face cache showed download progress, no leaked library output, the demo answering typed questions, compare mode, /stats charts, and Ctrl-C recovery; unit, lint, format, and strict type gates passed
 known_limitations:
   - one generation seed per experiment cell
   - thresholds selected and evaluated on the same out-of-fold score pool
   - bundled profiles require matching model, precision, prompt, and decoding distribution
-next_action: maintainer review of the branded private preview
+next_action: maintainer review of the charted terminal experience

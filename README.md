@@ -52,8 +52,10 @@ Self-consistency can help a small model—but running it on every prompt spends 
 On an Apple-Silicon Mac with Python 3.11+, this single command installs SiftSC, downloads the tested public 4-bit model, runs the complete comparison, **then keeps the model loaded so you can type your own questions immediately**:
 
 ```bash
-python -m pip install --upgrade "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
+python -m pip install -q --upgrade "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
 ```
+
+The `-q` keeps pip to warnings and errors. SiftSC itself prints only what matters: a one-line download progress on the first launch, a loading spinner, the two verified cases, and your prompt. Library chatter from the model stack is captured and shown only when loading fails or `SIFTSC_VERBOSE=1` is set.
 
 > [!NOTE]
 > **Private-preview requirement:** until this repository is made public, GitHub must be reachable and your Git client must be authenticated as a collaborator. This requirement disappears for the public release.
@@ -76,15 +78,15 @@ Already have a local clone? Bypass GitHub completely:
 
 ```bash
 cd /path/to/SiftSC
-python -m pip install --upgrade '.[mlx]' && siftsc demo
+python -m pip install -q --upgrade '.[mlx]' && siftsc demo
 ```
 
 </details>
 
 <table>
   <tr>
-    <td width="33%" valign="top"><strong>1 · 📦 Install</strong><br>The command installs the CLI and MLX backend.</td>
-    <td width="33%" valign="top"><strong>2 · 🤖 Download</strong><br>The pinned 290 MB Qwen model is fetched once, then cached locally.</td>
+    <td width="33%" valign="top"><strong>1 · 📦 Install</strong><br>The command installs the CLI and MLX backend quietly.</td>
+    <td width="33%" valign="top"><strong>2 · 🤖 Download</strong><br>The pinned 290 MB Qwen model is fetched once with a live MB counter, then cached locally.</td>
     <td width="33%" valign="top"><strong>3 · 🧪 Compare & chat</strong><br>Watch the verified cases, then ask your own questions without reloading.</td>
   </tr>
 </table>
@@ -100,12 +102,14 @@ These are real outputs from the public model with `mlx-lm 0.31.3`, not mocked tr
 Plain inference latches onto a distractor. SiftSC escalates, and independent traces recover the correct two-step calculation:
 
 ```text
-Question  Henry made two stops during his 60-mile bike trip. He first
-          stopped after 20 miles. His second stop was 15 miles before
-          the end. How far did he travel between the two stops?
-
-PLAIN    15  ✗   (1 deterministic pass)
-SIFTSC   25  ✓   (votes: 20 · 15 · 25 · 25 · 30)
+🗳️  CASE 1 · VOTE WHEN IT HELPS
+Question   Henry made two stops during his 60-mile bike trip. He first stopped
+           after 20 miles. His second stop was 15 miles before the end of the
+           trip. How many miles did he travel between his first and second
+           stops?
+Expected   25
+PLAIN      15  ✗   1 pass
+SIFTSC     25  ✓   6 passes · votes 20 · 15 · 25 · 25 · 30
 ```
 
 The second stop is at mile `60 - 15 = 45`; the distance between stops is `45 - 20 = 25`. Three of five independent traces reach `25`, so it wins the vote.
@@ -115,29 +119,34 @@ The second stop is at mile `60 - 15 = 45`; the distance between stops is `45 - 2
 Here the first answer is already right. Always-SC votes itself into the wrong answer; SiftSC knows when to stop:
 
 ```text
-Question    Darrell and Allen's ages are in the ratio 7:11. Their total
-            age is 162. How old will Allen be in 10 years?
-
-PLAIN       109  ✓
-ALWAYS-SC   100  ✗   blind voting changed a correct answer
-SIFTSC      109  ✓   voting skipped
-
-[compute] actual=1 pass · Always-SC=5 passes · saved=4 (80.0%)
+🛡️  CASE 2 · SKIP WHEN VOTING HURTS
+Question   Darrell and Allen's ages are in the ratio of 7:11. If their total age
+           now is 162, calculate Allen's age 10 years from now.
+Expected   109
+PLAIN      109  ✓   1 pass
+ALWAYS-SC  99  ✗   5 passes · blind voting changed a right answer
+SIFTSC     109  ✓   1 pass · vote skipped
+   ⚡ plain      █░░░░░   1 pass
+   👥 always-SC  █████░   5 passes
+   🧭 siftsc     █░░░░░   1 pass   ✅ saved 4 (80.0%)
 ```
+
+One chart cell is one generation pass, so bar length is the compute cost. The losing always-SC answer can differ between machines; what is checked is that the blind vote loses the correct `109` while SiftSC keeps it.
 
 #### 📉 See the compute drop
 
 The demo ends with the measured workload-level result—not a theoretical estimate:
 
 ```text
-MEASURED WORKLOAD · 400 PROMPTS
-ALWAYS-SC   2,000 generation passes
-SIFTSC        415 actual generation passes
-SAVED       1,585 passes (79.2% less compute)
-QUALITY     98.7% of Always-SC accuracy retained
+📉 MEASURED WORKLOAD · 400 PROMPTS
+   👥 always-SC  ████████████████████████████████  2,000 passes
+   🧭 siftsc     ███████░░░░░░░░░░░░░░░░░░░░░░░░░    415 passes
+   ✅ saved 1,585 passes · 79.2% less compute
+   🎯 98.7% of always-SC accuracy retained
 ✅ Reproduced: repair when voting helps; skip when voting hurts.
 
-🚀 YOUR TURN · The model stays loaded—ask your own question!
+🚀 YOUR TURN · The model stays loaded, ask your own question!
+💡 Best at math word problems · each turn is independent · /help lists commands
 💬 you · siftsc > _
 ```
 
@@ -157,31 +166,41 @@ siftsc chat
 
 ```text
 🚀 Choose a reasoning mode:
-  1  ⚡ plain   one quick deterministic answer
-  2  🗳️  siftsc  vote only when the router escalates
+  1  ⚡ plain     one deterministic pass, never votes
+  2  🧭 siftsc    votes only when the router escalates
+  3  🔬 compare   runs plain, always-SC and siftsc on every question
 ✨ mode [2] >
 
-🚀 Sifty is online · Ask your own reasoning question!
-💬 you · siftsc > Henry made two stops during his 60-mile trip...
+🚀 Sifty is online · mode 🧭 siftsc · votes only when the router escalates
+💬 you · siftsc > Henry made two stops during his 60-mile bike trip...
 ⣹  🧠 Sifty is deciding whether to call a vote
-✨ Answer ready
+✨ Answer ready · 2.9s
 
-🤖 Sifty > ...he traveled 60 - 35 = 25 miles. Answer: 25.
-🧭 [siftsc] 🗳️ voted · passes=6
-⚡ [compute] actual=6 passes · Always-SC=5 passes · extra=1 (20.0%)
+🤖 Sifty
+   Let's add the miles of the first and second stops: 20 + 15 = 35. That means
+   he traveled 35 miles between the first and second stops. That means he
+   traveled 60 - 35 = 25 miles between the first and second stops. Answer: 25.
+
+🎯 Answer: 25 · 🗳️ vote called · votes 20 · 15 · 25 · 25 · 30 · 6 passes · 2.9s
+   ⚡ plain      █░░░░░   1 pass   (the draft said 15)
+   👥 always-SC  █████░   5 passes
+   🧭 siftsc     ██████   6 passes 🛠️ vote changed the draft · ⚠️ extra 1 (+20.0%)
+📊 session · 2 questions · 7 vs 10 passes · saved 3 (30.0%) vs always-SC
 ```
 
-The spinner animates during model loading and reasoning, while compact status messages explain what SiftSC is doing. Animation automatically switches off for pipes and CI logs; set `SIFTSC_NO_ANIMATION=1` to disable it manually.
+Every answer ends with a highlighted `🎯 Answer` line, the route the router took, and a compute chart in which one cell is one generation pass. The spinner animates during model loading and reasoning; animation switches off for pipes and CI logs, or set `SIFTSC_NO_ANIMATION=1`. Arrow keys and history work at the prompt, and Ctrl-C stops the current answer without leaving the session.
 
 ### 🔀 Switch modes without reloading
 
 Change the inference policy at any time while the model stays in memory:
 
 ```text
-/plain     ⚡ one deterministic pass
-/siftsc    🗳️ selective voting
-/clear     🧹 clear the terminal
-/help      🧭 show all commands
+/plain     ⚡ one deterministic pass, never votes
+/siftsc    🧭 votes only when the router escalates
+/compare   🔬 runs plain, always-SC and siftsc on every question
+/stats     📊 show the session compute chart
+/clear     🧹 clear the screen
+/help      🧭 show these commands
 /exit      👋 leave SiftSC
 ```
 
@@ -190,19 +209,42 @@ Or select the mode before launch:
 ```bash
 siftsc chat --mode plain
 siftsc chat --mode siftsc
+siftsc chat --mode compare
 ```
 
 Each turn is treated as an independent reasoning question because the bundled router was calibrated on math reasoning, not open-ended conversation history.
 
-### 📟 Watch compute savings live
+### 🔬 Compare all three policies on one question
 
-After every answer, the CLI reports both the current request and cumulative session savings against Always-SC@5:
+Compare mode answers with SiftSC and completes the always-SC baseline without waste: plain inference is exactly SiftSC's greedy draft, so it is never rerun, and when SiftSC called a vote the same five voters are the always-SC result. Every policy row shows its answer, its passes, and its measured time:
 
 ```text
-🧭 [siftsc] 🛡️ accepted the first answer · passes=1
-⚡ [compute] actual=1 pass · Always-SC=5 passes · saved=4 (80.0%)
-📊 [session] actual=8 passes · Always-SC=15 passes · saved=7 (46.7%)
+💬 you · compare > A shop sold 18 books on Monday and twice as many on Tuesday. How many books in total?
+✨ Comparison ready · 2.9s
+
+🎯 Answer: 54 · 🛡️ first answer accepted · 1 pass · 2.9s for all three policies
+🔬 COMPARE · one question, three policies
+   ⚡ plain      █░░░░░  1 pass     0.6s  → 54
+   👥 always-SC  █████░  5 passes   2.3s  → 54   votes 72 · 54 · 36 · 54 · 54
+   🧭 siftsc     █░░░░░  1 pass     0.6s  → 54   🛡️ vote skipped
+   🤝 all three policies agree
 ```
+
+The same comparison is available for a single question with `siftsc ask "..." --mode compare`.
+
+### 📟 Watch compute savings live
+
+After every answer the CLI prints a one-line session total, and `/stats` draws the whole session:
+
+```text
+📊 SESSION · 3 questions · 1 vote called
+   ⚡ plain      ██████░░░░░░░░░░░░░░░░░░     3 passes if all used one pass
+   👥 always-SC  ████████████████████████    15 passes if all voted
+   🧭 spent      █████████████████████░░░    13 passes ✅ saved 2 (13.3%)
+   ⏱️  5.9s of generation · 1,170 tokens
+```
+
+Passes are the transparent compute proxy from the paper; seconds and tokens are measured on your machine.
 
 ## ⚡ The difference, in two numbers
 
@@ -235,6 +277,7 @@ Skip the interactive session and compare either policy directly:
 ```bash
 siftsc ask "If 3 notebooks cost £4 each, what is the total?"
 siftsc ask "If 3 notebooks cost £4 each, what is the total?" --mode plain
+siftsc ask "If 3 notebooks cost £4 each, what is the total?" --mode compare --json
 ```
 
 ### 🧱 Bring your own local model

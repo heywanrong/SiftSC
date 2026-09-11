@@ -56,4 +56,4 @@ def test_readme_explains_private_preview_install_failures() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "Failed to connect to github.com port 443" in readme
     assert "gh auth setup-git" in readme
-    assert "python -m pip install --upgrade '.[mlx]'" in readme
+    assert "python -m pip install -q --upgrade '.[mlx]'" in readme

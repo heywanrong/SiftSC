@@ -18,3 +18,24 @@ def test_completion_cleans_text_after_a_finished_answer_without_early_stop() -> 
 
 def test_completion_does_not_stop_during_reasoning() -> None:
     assert _completion_stop_position("First calculate 60 - 15.", ()) is None
+
+
+def test_metered_backend_records_seconds_and_tokens() -> None:
+    from siftsc.backends import MeteredBackend
+    from siftsc.types import Generation
+
+    class Fake:
+        def generate(self, prompt: str, **kwargs: object) -> Generation:
+            return Generation(text="The answer is 4.", token_ids=(1, 2, 3))
+
+    metered = MeteredBackend(Fake())
+    generation = metered.generate(
+        "2 + 2", greedy=True, seed=0, max_tokens=8, temperature=0.0, top_p=1.0
+    )
+
+    assert generation.text == "The answer is 4."
+    costs = metered.take()
+    assert len(costs) == 1
+    assert costs[0].tokens == 3
+    assert costs[0].seconds >= 0.0
+    assert metered.take() == []

@@ -6,16 +6,40 @@ import argparse
 import json
 import os
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TextIO
 
-from .backends import MLXBackend
+from .backends import Backend, MeteredBackend, MLXBackend
+from .display import (
+    ALWAYS_SC,
+    COMPARE,
+    PLAIN,
+    POLICY_DESCRIPTIONS,
+    POLICY_ICONS,
+    SIFTSC,
+    CompareRow,
+    SessionStats,
+    TurnCost,
+    answer_lines,
+    compare_table,
+    compute_chart,
+    session_chart,
+    session_line,
+    workload_chart,
+)
 from .gates import list_profiles, load_profile
 from .prompts import math_prompt
 from .router import SiftSC
-from .terminal import AnimatedStatus
-from .types import Generation
-from .voting import parse_answer
+from .terminal import (
+    AnimatedStatus,
+    QuietLibraryOutput,
+    format_seconds,
+    terminal_width,
+    wrap_labeled,
+)
+from .types import Generation, SiftResult
+from .voting import parse_answer, plurality_vote
 
 DEFAULT_MODEL = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
 DEFAULT_MODEL_REVISION = "a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3"
@@ -38,6 +62,9 @@ BENCHMARK_ALWAYS_SC_PASSES = BENCHMARK_PROMPTS * 5
 BENCHMARK_SIFTSC_PASSES = BENCHMARK_PROMPTS + BENCHMARK_ESCALATIONS * 5
 BENCHMARK_COMPUTE_REDUCTION = 1.0 - BENCHMARK_SIFTSC_PASSES / BENCHMARK_ALWAYS_SC_PASSES
 BENCHMARK_ACCURACY_RETENTION = 0.987
+MODES = (PLAIN, SIFTSC, COMPARE)
+EXAMPLE_QUESTION = "If 3 notebooks cost £4 each, what is the total?"
+_EXIT_COMMANDS = {"/exit", "/quit", "exit", "quit"}
 
 
 def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
@@ -53,6 +80,9 @@ def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top-p", type=float, default=0.95)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument(
+        "--raw-prompt", action="store_true", help="do not add the paper's math prompt"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,13 +95,10 @@ def build_parser() -> argparse.ArgumentParser:
     chat = subparsers.add_parser("chat", help="start an interactive local reasoning chat")
     _add_runtime_arguments(chat)
     chat.set_defaults(max_tokens=128)
-    chat.add_argument("--mode", choices=("plain", "siftsc"), help="skip the startup menu")
-    chat.add_argument(
-        "--raw-prompt", action="store_true", help="do not add the paper's math prompt"
-    )
+    chat.add_argument("--mode", choices=MODES, help="skip the startup menu")
 
     demo = subparsers.add_parser(
-        "demo", help="reproduce a fixed case where voting repairs a plain answer"
+        "demo", help="reproduce two fixed cases, then keep the model loaded for your questions"
     )
     _add_runtime_arguments(demo)
     demo.set_defaults(max_tokens=128)
@@ -85,8 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask = subparsers.add_parser("ask", help="run one prompt through a local MLX model")
     ask.add_argument("prompt", help="question or prompt text")
     _add_runtime_arguments(ask)
-    ask.add_argument("--mode", choices=("plain", "siftsc"), default="siftsc")
-    ask.add_argument("--raw-prompt", action="store_true", help="do not add the paper's math prompt")
+    ask.add_argument("--mode", choices=MODES, default=SIFTSC)
     ask.add_argument(
         "--chat-template",
         action="store_true",
@@ -98,7 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _make_runner(args: argparse.Namespace, backend: MLXBackend) -> SiftSC:
+def _make_runner(args: argparse.Namespace, backend: Backend) -> SiftSC:
     gate = load_profile(args.profile)
     if args.threshold is not None:
         gate = gate.with_threshold(args.threshold)
@@ -113,48 +139,181 @@ def _make_runner(args: argparse.Namespace, backend: MLXBackend) -> SiftSC:
     )
 
 
+# --------------------------------------------------------------------------- loading
+
+
+def _model_label(model: str) -> str:
+    if Path(model).exists():
+        return Path(model).name or model
+    return model.rsplit("/", 1)[-1]
+
+
+def _megabytes(done: int, total: int | None) -> str:
+    text = f"{done / 1e6:,.0f} MB"
+    return f"{text} of {total / 1e6:,.0f} MB" if total else text
+
+
+def _download_if_needed(backend: MLXBackend, label: str, console: TextIO) -> None:
+    """Fetch model files first so loading itself is quick and the progress is visible."""
+
+    is_cached = getattr(backend, "is_cached", None)
+    ensure_downloaded = getattr(backend, "ensure_downloaded", None)
+    if is_cached is None or ensure_downloaded is None or is_cached():
+        return
+    print(f"📦 One-time download · {label} · later runs start from the local cache", file=console)
+    with AnimatedStatus(
+        "📦 Downloading the model", "✅ Model downloaded · {elapsed}", stream=console
+    ) as status:
+
+        def progress(done: int, total: int | None) -> None:
+            status.update(_megabytes(done, total))
+
+        ensure_downloaded(progress)
+
+
+def _print_library_output(captured: str, *, force: bool) -> None:
+    if not captured.strip() or not (force or os.environ.get("SIFTSC_VERBOSE")):
+        return
+    print("🔎 Library output while loading:", file=sys.stderr)
+    for line in captured.strip().splitlines():
+        print(f"   {line}", file=sys.stderr)
+
+
 def _load_backend(model: str, *, chat_template: bool = False) -> MLXBackend:
     revision = DEFAULT_MODEL_REVISION if model == DEFAULT_MODEL else None
     backend = MLXBackend(model, use_chat_template=chat_template, revision=revision)
-    if not Path(model).exists() and "/" in model:
-        print(
-            "📦 First launch downloads about 290 MB from Hugging Face; later runs use cache.",
-            file=sys.stderr,
-        )
-        label = model
-    else:
-        label = f"local model · {model}"
-
+    label = _model_label(model)
     previous_progress = os.environ.get("HF_HUB_DISABLE_PROGRESS_BARS")
     os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+    quiet = QuietLibraryOutput()
     try:
-        with AnimatedStatus(
-            f"🚀 Waking up Sifty · {label}",
-            "✅ Sifty is ready!",
-        ):
-            backend.load()
+        with quiet:
+            _download_if_needed(backend, label, quiet.console)
+            with AnimatedStatus(
+                f"🚀 Waking up Sifty · {label}",
+                "✅ Sifty is ready · {elapsed}",
+                stream=quiet.console,
+            ):
+                backend.load()
+    except BaseException:
+        _print_library_output(quiet.captured, force=True)
+        raise
     finally:
         if previous_progress is None:
             os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
         else:
             os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = previous_progress
+    _print_library_output(quiet.captured, force=False)
     print(file=sys.stderr)
     return backend
 
 
-def _format_prompt(question: str, *, raw: bool) -> str:
-    return question if raw else math_prompt(question)
+# --------------------------------------------------------------------------- engine
 
 
-def _plain_generation(args: argparse.Namespace, backend: MLXBackend, prompt: str) -> Generation:
-    return backend.generate(
-        prompt,
-        greedy=True,
-        seed=0,
-        max_tokens=args.max_tokens,
-        temperature=args.temperature,
-        top_p=args.top_p,
-    )
+@dataclass(slots=True)
+class _Comparison:
+    result: SiftResult
+    rows: list[CompareRow]
+    cost: TurnCost
+
+
+@dataclass(slots=True)
+class _Engine:
+    """Run one question under a policy and measure what it cost."""
+
+    runner: SiftSC
+    metered: MeteredBackend
+    samples: int
+    max_tokens: int
+    temperature: float
+    top_p: float
+    raw_prompt: bool
+    stats: SessionStats
+
+    @classmethod
+    def create(cls, args: argparse.Namespace, backend: Backend) -> _Engine:
+        metered = MeteredBackend(backend)
+        return cls(
+            runner=_make_runner(args, metered),
+            metered=metered,
+            samples=args.samples,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+            raw_prompt=bool(getattr(args, "raw_prompt", False)),
+            stats=SessionStats(samples=args.samples),
+        )
+
+    def prompt_for(self, question: str) -> str:
+        return question if self.raw_prompt else math_prompt(question)
+
+    def _take_cost(self) -> TurnCost:
+        costs = self.metered.take()
+        return TurnCost(
+            passes=len(costs),
+            seconds=sum(cost.seconds for cost in costs),
+            tokens=sum(cost.tokens for cost in costs),
+        )
+
+    def plain(self, question: str) -> tuple[Generation, TurnCost]:
+        generation = self.metered.generate(
+            self.prompt_for(question),
+            greedy=True,
+            seed=0,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            top_p=self.top_p,
+        )
+        return generation, self._take_cost()
+
+    def siftsc(self, question: str) -> tuple[SiftResult, TurnCost]:
+        result = self.runner(self.prompt_for(question), feature_text=question)
+        return result, self._take_cost()
+
+    def compare(self, question: str) -> _Comparison:
+        """Answer with SiftSC, then complete the always-SC baseline without waste.
+
+        Plain inference is exactly SiftSC's greedy draft, so it is never rerun. When
+        SiftSC called a vote, always-SC is the same five voters; otherwise five fresh
+        voters are drawn with the router's own seeds.
+        """
+
+        prompt = self.prompt_for(question)
+        result = self.runner(prompt, feature_text=question)
+        costs = self.metered.take()
+        draft_cost, voter_costs = costs[0], costs[1:]
+        if result.used_self_consistency:
+            voters = result.generations[1:]
+            always_answer = result.parsed_answer
+        else:
+            voters = self.runner.sample_traces(prompt)
+            voter_costs = self.metered.take()
+            _, always_answer, _ = plurality_vote(voters, self.runner.parser)
+        voter_seconds = sum(cost.seconds for cost in voter_costs)
+        votes = " · ".join(self.runner.parser(voter.text) or "∅" for voter in voters)
+        siftsc_seconds = draft_cost.seconds + (
+            voter_seconds if result.used_self_consistency else 0.0
+        )
+        siftsc_note = "🗳️ vote called" if result.used_self_consistency else "🛡️ vote skipped"
+        rows = [
+            CompareRow(
+                PLAIN, self.runner.parser(result.generations[0].text), 1, draft_cost.seconds
+            ),
+            CompareRow(ALWAYS_SC, always_answer, len(voters), voter_seconds, f"votes {votes}"),
+            CompareRow(
+                SIFTSC, result.parsed_answer, result.generation_passes, siftsc_seconds, siftsc_note
+            ),
+        ]
+        cost = TurnCost(
+            passes=1 + len(voters),
+            seconds=draft_cost.seconds + voter_seconds,
+            tokens=draft_cost.tokens + sum(cost.tokens for cost in voter_costs),
+        )
+        return _Comparison(result=result, rows=rows, cost=cost)
+
+
+# --------------------------------------------------------------------------- rendering
 
 
 def _compute_comparison(passes: int, always_sc_passes: int) -> dict[str, int | float]:
@@ -168,71 +327,163 @@ def _compute_comparison(passes: int, always_sc_passes: int) -> dict[str, int | f
     }
 
 
-def _compute_line(passes: int, always_sc_passes: int, *, label: str = "compute") -> str:
-    comparison = _compute_comparison(passes, always_sc_passes)
-    saved = int(comparison["passes_saved"])
-    percentage = abs(float(comparison["compute_reduction"])) * 100
-    direction = "saved" if saved >= 0 else "extra"
-    icon = "⚡" if label == "compute" else "📊"
-    return (
-        f"{icon} "
-        f"[{label}] actual={passes} pass{'es' if passes != 1 else ''} · "
-        f"Always-SC={always_sc_passes} passes · "
-        f"{direction}={abs(saved)} ({percentage:.1f}%)"
+def _print_lines(lines: list[str]) -> None:
+    for line in lines:
+        print(line)
+
+
+def _print_plain_turn(
+    generation: Generation, cost: TurnCost, engine: _Engine, *, width: int
+) -> None:
+    _print_lines(answer_lines(generation.text, width=width))
+    answer = parse_answer(generation.text)
+    print(f"\n🎯 Answer: {answer or '∅'} · ⚡ one pass · {format_seconds(cost.seconds)}")
+    _print_lines(compute_chart(actual_passes=1, samples=engine.samples, mode=PLAIN))
+
+
+def _print_siftsc_turn(result: SiftResult, cost: TurnCost, engine: _Engine, *, width: int) -> None:
+    _print_lines(answer_lines(result.text, width=width))
+    draft_answer = parse_answer(result.generations[0].text)
+    if result.used_self_consistency:
+        votes = " · ".join(parse_answer(item.text) or "∅" for item in result.generations[1:])
+        route = f"🗳️ vote called · votes {votes}"
+        draft_note = f"(the draft said {draft_answer or '∅'})"
+        if draft_answer == result.parsed_answer:
+            actual_note = "🤝 vote confirmed the draft"
+        else:
+            actual_note = "🛠️ vote changed the draft"
+    else:
+        route, draft_note, actual_note = "🛡️ first answer accepted", "", ""
+    passes = result.generation_passes
+    unit = "pass" if passes == 1 else "passes"
+    print(
+        f"\n🎯 Answer: {result.parsed_answer or '∅'} · {route} · {passes} {unit} · "
+        f"{format_seconds(cost.seconds)}"
     )
+    _print_lines(
+        compute_chart(
+            actual_passes=passes,
+            samples=engine.samples,
+            draft_note=draft_note,
+            actual_note=actual_note,
+        )
+    )
+
+
+def _print_compare_turn(comparison: _Comparison, engine: _Engine, *, width: int) -> None:
+    result = comparison.result
+    _print_lines(answer_lines(result.text, width=width))
+    passes = result.generation_passes
+    unit = "pass" if passes == 1 else "passes"
+    route = "🗳️ vote called" if result.used_self_consistency else "🛡️ first answer accepted"
+    print(
+        f"\n🎯 Answer: {result.parsed_answer or '∅'} · {route} · {passes} {unit} · "
+        f"{format_seconds(comparison.cost.seconds)} for all three policies"
+    )
+    _print_lines(compare_table(comparison.rows, samples=engine.samples))
+
+
+def _run_turn(engine: _Engine, mode: str, question: str, *, width: int) -> None:
+    """Answer one question in ``mode``; status goes to stderr, results to stdout."""
+
+    if mode == PLAIN:
+        with AnimatedStatus("💭 Sifty is thinking once", "✨ Answer ready · {elapsed}"):
+            generation, cost = engine.plain(question)
+        print()
+        _print_plain_turn(generation, cost, engine, width=width)
+        engine.stats.record(cost, voted=False)
+    elif mode == COMPARE:
+        with AnimatedStatus(
+            "🔬 Sifty is running plain, always-SC and siftsc", "✨ Comparison ready · {elapsed}"
+        ):
+            comparison = engine.compare(question)
+        print()
+        _print_compare_turn(comparison, engine, width=width)
+        engine.stats.record(comparison.cost, voted=comparison.result.used_self_consistency)
+    else:
+        with AnimatedStatus(
+            "🧠 Sifty is deciding whether to call a vote", "✨ Answer ready · {elapsed}"
+        ):
+            result, cost = engine.siftsc(question)
+        print()
+        _print_siftsc_turn(result, cost, engine, width=width)
+        engine.stats.record(cost, voted=result.used_self_consistency)
+
+
+# --------------------------------------------------------------------------- ask
 
 
 def _run_ask(args: argparse.Namespace) -> int:
     backend = _load_backend(args.model, chat_template=args.chat_template)
-    prompt = _format_prompt(args.prompt, raw=args.raw_prompt)
-    if args.mode == "plain":
-        with AnimatedStatus("💭 Thinking once", "✨ Answer ready"):
-            generation = _plain_generation(args, backend, prompt)
-        answer = parse_answer(generation.text)
+    engine = _Engine.create(args, backend)
+    width = terminal_width()
+    if args.mode == PLAIN:
+        with AnimatedStatus("💭 Thinking once", "✨ Answer ready · {elapsed}"):
+            generation, cost = engine.plain(args.prompt)
         if args.json:
-            print(
-                json.dumps(
-                    {
-                        "mode": "plain",
-                        "text": generation.text,
-                        "parsed_answer": answer,
-                        "passes": 1,
-                        "compute_comparison": _compute_comparison(1, args.samples),
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
+            payload: dict[str, object] = {
+                "mode": PLAIN,
+                "text": generation.text,
+                "parsed_answer": parse_answer(generation.text),
+                "passes": 1,
+                "cost": asdict(cost),
+                "compute_comparison": _compute_comparison(1, args.samples),
+            }
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
         else:
-            print(generation.text.strip())
-            print("\n[plain] passes=1")
-            print(_compute_line(1, args.samples))
+            print()
+            _print_plain_turn(generation, cost, engine, width=width)
         return 0
 
-    with AnimatedStatus("🧠 Deciding whether this answer needs a vote", "✨ Answer ready"):
-        result = _make_runner(args, backend)(prompt, feature_text=args.prompt)
+    if args.mode == COMPARE:
+        with AnimatedStatus(
+            "🔬 Running plain, always-SC and siftsc", "✨ Comparison ready · {elapsed}"
+        ):
+            comparison = engine.compare(args.prompt)
+        if args.json:
+            payload = asdict(comparison.result)
+            payload["policies"] = [asdict(row) for row in comparison.rows]
+            payload["cost"] = asdict(comparison.cost)
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print()
+            _print_compare_turn(comparison, engine, width=width)
+        return 0
+
+    with AnimatedStatus(
+        "🧠 Deciding whether this answer needs a vote", "✨ Answer ready · {elapsed}"
+    ):
+        result, cost = engine.siftsc(args.prompt)
     if args.json:
         payload = asdict(result)
+        payload["cost"] = asdict(cost)
         payload["compute_comparison"] = _compute_comparison(result.generation_passes, args.samples)
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        route = "SC" if result.used_self_consistency else "greedy"
-        print(result.text.strip())
-        print(f"\n[siftsc] route={route} passes={result.generation_passes}")
-        print(_compute_line(result.generation_passes, args.samples))
+        print()
+        _print_siftsc_turn(result, cost, engine, width=width)
     return 0
+
+
+# --------------------------------------------------------------------------- chat
 
 
 def _choose_mode() -> str:
     print("🚀 Choose a reasoning mode:")
-    print("  1  ⚡ plain   one quick deterministic answer")
-    print("  2  🗳️  siftsc  vote only when the router escalates")
+    print(f"  1  {POLICY_ICONS[PLAIN]} plain     {POLICY_DESCRIPTIONS[PLAIN]}")
+    print(f"  2  {POLICY_ICONS[SIFTSC]} siftsc    {POLICY_DESCRIPTIONS[SIFTSC]}")
+    print(f"  3  {POLICY_ICONS[COMPARE]} compare   {POLICY_DESCRIPTIONS[COMPARE]}")
     choice = input("✨ mode [2] > ").strip().lower()
-    return "plain" if choice in {"1", "plain", "p"} else "siftsc"
+    if choice in {"1", PLAIN, "p"}:
+        return PLAIN
+    if choice in {"3", COMPARE, "c"}:
+        return COMPARE
+    return SIFTSC
 
 
 def _chat_runtime_args(args: argparse.Namespace) -> argparse.Namespace:
     runtime_args = argparse.Namespace(**vars(args))
+    runtime_args.raw_prompt = bool(getattr(args, "raw_prompt", False))
     if (
         runtime_args.threshold is None
         and runtime_args.model == DEFAULT_MODEL
@@ -243,33 +494,56 @@ def _chat_runtime_args(args: argparse.Namespace) -> argparse.Namespace:
 
 
 def _print_chat_help() -> None:
-    print("  /plain   ⚡ one deterministic pass")
-    print("  /siftsc  🗳️  selective voting")
-    print("  /clear   🧹 clear the screen")
-    print("  /help    🧭 show these commands")
-    print("  /exit    👋 leave SiftSC")
+    print(f"  /plain     {POLICY_ICONS[PLAIN]} {POLICY_DESCRIPTIONS[PLAIN]}")
+    print(f"  /siftsc    {POLICY_ICONS[SIFTSC]} {POLICY_DESCRIPTIONS[SIFTSC]}")
+    print(f"  /compare   {POLICY_ICONS[COMPARE]} {POLICY_DESCRIPTIONS[COMPARE]}")
+    print("  /stats     📊 show the session compute chart")
+    print("  /clear     🧹 clear the screen")
+    print("  /help      🧭 show these commands")
+    print("  /exit      👋 leave SiftSC")
+
+
+def _enable_line_editing() -> None:
+    """Give ``input()`` arrow keys and history on real terminals."""
+
+    if not sys.stdin.isatty():
+        return
+    try:
+        import readline  # noqa: F401
+    except ImportError:
+        return
+
+
+def _print_welcome(mode: str, *, launched_from_demo: bool, demo_threshold: bool) -> None:
+    if launched_from_demo:
+        print("\n🚀 YOUR TURN · The model stays loaded, ask your own question!")
+    else:
+        print(
+            f"🚀 Sifty is online · mode {POLICY_ICONS[mode]} {mode} · {POLICY_DESCRIPTIONS[mode]}"
+        )
+    print("💡 Best at math word problems · each turn is independent · /help lists commands")
+    print(f'   Try: "{EXAMPLE_QUESTION}"')
+    if demo_threshold:
+        print(f"🧭 Public-model routing uses the reproducible demo threshold ({DEMO_THRESHOLD}).")
+    print()
 
 
 def _run_chat_session(
     args: argparse.Namespace,
-    backend: MLXBackend,
+    backend: Backend,
     *,
     mode: str,
     launched_from_demo: bool = False,
 ) -> int:
     runtime_args = _chat_runtime_args(args)
-    runner = _make_runner(runtime_args, backend)
-    session_passes = 0
-    session_always_sc_passes = 0
-    if launched_from_demo:
-        print("\n🚀 YOUR TURN · The model stays loaded—ask your own question!")
-    else:
-        print("\n🚀 Sifty is online · Ask your own reasoning question!")
-    print("💡 Each turn is independent; type /help for commands.")
-    if runtime_args.threshold == DEMO_THRESHOLD and args.threshold is None:
-        print("🧭 Public-model routing is tuned to the reproducible demo threshold.\n")
-    else:
-        print()
+    engine = _Engine.create(runtime_args, backend)
+    width = terminal_width()
+    _enable_line_editing()
+    _print_welcome(
+        mode,
+        launched_from_demo=launched_from_demo,
+        demo_threshold=runtime_args.threshold == DEMO_THRESHOLD and args.threshold is None,
+    )
     while True:
         try:
             question = input(f"💬 you · {mode} > ").strip()
@@ -279,13 +553,16 @@ def _run_chat_session(
         if not question:
             continue
         command = question.lower()
-        if command in {"/exit", "/quit", "exit", "quit"}:
+        if command in _EXIT_COMMANDS:
             print("👋 Thanks for trying SiftSC!")
             return 0
-        if command in {"/plain", "/siftsc"}:
+        if command in {f"/{name}" for name in MODES}:
             mode = command[1:]
-            icon = "⚡" if mode == "plain" else "🗳️"
-            print(f"🔀 Mode switched · {icon} {mode}\n")
+            print(f"🔀 Mode switched · {POLICY_ICONS[mode]} {mode} · {POLICY_DESCRIPTIONS[mode]}\n")
+            continue
+        if command == "/stats":
+            _print_lines(session_chart(engine.stats, width=width))
+            print()
             continue
         if command == "/clear":
             if sys.stdout.isatty():
@@ -298,32 +575,18 @@ def _run_chat_session(
             _print_chat_help()
             print()
             continue
-
-        prompt = _format_prompt(question, raw=runtime_args.raw_prompt)
-        if mode == "plain":
-            with AnimatedStatus("💭 Sifty is thinking once", "✨ Answer ready"):
-                generation = _plain_generation(runtime_args, backend, prompt)
-            passes = 1
-            print(f"\n🤖 Sifty > {generation.text.strip()}")
-            print("⚡ [plain] one pass · passes=1")
-            print(_compute_line(passes, runtime_args.samples))
-            session_passes += passes
-            session_always_sc_passes += runtime_args.samples
-            print(_compute_line(session_passes, session_always_sc_passes, label="session"), "\n")
+        if command.startswith("/"):
+            print(f"🤔 Unknown command {question} · type /help to see the list\n")
             continue
 
-        with AnimatedStatus(
-            "🧠 Sifty is deciding whether to call a vote",
-            "✨ Answer ready",
-        ):
-            result = runner(prompt, feature_text=question)
-        route = "🗳️ voted" if result.used_self_consistency else "🛡️ accepted the first answer"
-        print(f"\n🤖 Sifty > {result.text.strip()}")
-        print(f"🧭 [siftsc] {route} · passes={result.generation_passes}")
-        print(_compute_line(result.generation_passes, runtime_args.samples))
-        session_passes += result.generation_passes
-        session_always_sc_passes += runtime_args.samples
-        print(_compute_line(session_passes, session_always_sc_passes, label="session"), "\n")
+        try:
+            _run_turn(engine, mode, question, width=width)
+        except KeyboardInterrupt:
+            engine.metered.take()
+            print("\n⏹  Stopped · ask another question or type /exit\n")
+            continue
+        print(session_line(engine.stats))
+        print()
 
 
 def _run_chat(args: argparse.Namespace) -> int:
@@ -332,22 +595,39 @@ def _run_chat(args: argparse.Namespace) -> int:
     return _run_chat_session(args, backend, mode=mode)
 
 
+# --------------------------------------------------------------------------- demo
+
+
+def _demo_row(label: str, value: str | None, mark: str, note: str) -> str:
+    return f"{label:<11}{value or '∅'}  {mark}   {note}"
+
+
+def _mark(value: str | None, expected: str) -> str:
+    return "✓" if value == expected else "✗"
+
+
 def _run_demo(args: argparse.Namespace) -> int:
     backend = _load_backend(args.model)
     demo_args = argparse.Namespace(**vars(args))
     demo_args.threshold = args.threshold if args.threshold is not None else DEMO_THRESHOLD
+    forced_args = argparse.Namespace(**vars(args))
+    forced_args.threshold = 0.0
     with AnimatedStatus(
-        "🧪 Running two verified showcase cases",
-        "✅ Showcase ready",
+        "🧪 Case 1 · Henry's bike trip · will a vote help?", "✅ Case 1 done · {elapsed}"
     ):
         result = _make_runner(demo_args, backend)(
             math_prompt(DEMO_QUESTION), feature_text=DEMO_QUESTION
         )
+    with AnimatedStatus(
+        "🧪 Case 2 · Darrell and Allen · should the vote be skipped?",
+        "✅ Case 2 done · {elapsed}",
+    ):
         protected = _make_runner(demo_args, backend)(
             math_prompt(PROTECTION_QUESTION), feature_text=PROTECTION_QUESTION
         )
-        forced_args = argparse.Namespace(**vars(args))
-        forced_args.threshold = 0.0
+    with AnimatedStatus(
+        "🧪 Case 2 · forcing a blind vote for comparison", "✅ Comparison done · {elapsed}"
+    ):
         always_sc = _make_runner(forced_args, backend)(
             math_prompt(PROTECTION_QUESTION), feature_text=PROTECTION_QUESTION
         )
@@ -392,60 +672,104 @@ def _run_demo(args: argparse.Namespace) -> int:
         "model": args.model,
         "seed": args.seed,
     }
+    interactive = not args.json and not args.no_chat and sys.stdin.isatty()
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        plain_mark = "✗" if plain != DEMO_ANSWER else "✓"
-        sift_mark = "✓" if result.parsed_answer == DEMO_ANSWER else "✗"
-        vote_text = " · ".join(v or "∅" for v in votes)
-        print("─" * 68)
-        print("🗳️  CASE 1 · VOTE WHEN IT HELPS")
-        print(f"Question  {DEMO_QUESTION}")
-        print(f"Expected  {DEMO_ANSWER}")
-        print("─" * 68)
-        print(f"PLAIN    {plain or '∅'}  {plain_mark}   (1 deterministic pass)")
-        print(f"SIFTSC   {result.parsed_answer or '∅'}  {sift_mark}   (votes: {vote_text})")
-        print("─" * 68)
-        print("🛡️  CASE 2 · SKIP WHEN VOTING HURTS")
-        print(f"Question  {PROTECTION_QUESTION}")
-        print(f"Expected  {PROTECTION_ANSWER}")
-        print("─" * 68)
-        print(f"PLAIN       {protected_plain or '∅'}  ✓")
-        print(
-            f"ALWAYS-SC   {always_sc.parsed_answer or '∅'}  ✗   "
-            "(blind voting changed a right answer)"
-        )
-        print(f"SIFTSC      {protected.parsed_answer or '∅'}  ✓   (vote skipped)")
-        print(_compute_line(protected.generation_passes, args.samples))
-        print("─" * 68)
-        print(f"⚡ MEASURED WORKLOAD · {BENCHMARK_PROMPTS} PROMPTS")
-        print(f"ALWAYS-SC   {BENCHMARK_ALWAYS_SC_PASSES:,} generation passes")
-        print(f"SIFTSC        {BENCHMARK_SIFTSC_PASSES:,} actual generation passes")
-        print(
-            f"SAVED       {BENCHMARK_ALWAYS_SC_PASSES - BENCHMARK_SIFTSC_PASSES:,} passes "
-            f"({BENCHMARK_COMPUTE_REDUCTION:.1%} less compute)"
-        )
-        print(f"QUALITY     {BENCHMARK_ACCURACY_RETENTION:.1%} of Always-SC accuracy retained")
-        print("─" * 68)
-        print(
-            "✅ Reproduced: repair when voting helps; skip when voting hurts."
-            if reproduced
-            else "Result drifted; see notes below."
+        _print_demo_report(
+            args,
+            result=result,
+            plain=plain,
+            votes=votes,
+            protected=protected,
+            protected_plain=protected_plain,
+            always_sc=always_sc,
+            reproduced=reproduced,
         )
     if not reproduced:
         print(
             "[siftsc] The fixed demo did not reproduce. "
-            "Check the documented model and mlx-lm version.",
+            "Check the documented model revision and mlx-lm version.",
             file=sys.stderr,
         )
-        return 2
-    if not args.json and not args.no_chat and sys.stdin.isatty():
-        return _run_chat_session(args, backend, mode="siftsc", launched_from_demo=True)
+        if not interactive:
+            return 2
+    if interactive:
+        return _run_chat_session(args, backend, mode=SIFTSC, launched_from_demo=True)
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+def _print_demo_report(
+    args: argparse.Namespace,
+    *,
+    result: SiftResult,
+    plain: str | None,
+    votes: list[str | None],
+    protected: SiftResult,
+    protected_plain: str | None,
+    always_sc: SiftResult,
+    reproduced: bool,
+) -> None:
+    width = terminal_width()
+    rule = "─" * min(width, 72)
+    vote_text = " · ".join(vote or "∅" for vote in votes)
+    print(rule)
+    print("🗳️  CASE 1 · VOTE WHEN IT HELPS")
+    _print_lines(wrap_labeled("Question", DEMO_QUESTION, width=width, label_width=11))
+    print(f"{'Expected':<11}{DEMO_ANSWER}")
+    print(_demo_row("PLAIN", plain, _mark(plain, DEMO_ANSWER), "1 pass"))
+    print(
+        _demo_row(
+            "SIFTSC",
+            result.parsed_answer,
+            _mark(result.parsed_answer, DEMO_ANSWER),
+            f"{result.generation_passes} passes · votes {vote_text}",
+        )
+    )
+    print(rule)
+    print("🛡️  CASE 2 · SKIP WHEN VOTING HURTS")
+    _print_lines(wrap_labeled("Question", PROTECTION_QUESTION, width=width, label_width=11))
+    print(f"{'Expected':<11}{PROTECTION_ANSWER}")
+    print(_demo_row("PLAIN", protected_plain, _mark(protected_plain, PROTECTION_ANSWER), "1 pass"))
+    print(
+        _demo_row(
+            "ALWAYS-SC",
+            always_sc.parsed_answer,
+            _mark(always_sc.parsed_answer, PROTECTION_ANSWER),
+            f"{args.samples} passes · blind voting changed a right answer",
+        )
+    )
+    protected_note = "vote skipped" if not protected.used_self_consistency else "vote called"
+    unit = "pass" if protected.generation_passes == 1 else "passes"
+    print(
+        _demo_row(
+            "SIFTSC",
+            protected.parsed_answer,
+            _mark(protected.parsed_answer, PROTECTION_ANSWER),
+            f"{protected.generation_passes} {unit} · {protected_note}",
+        )
+    )
+    _print_lines(compute_chart(actual_passes=protected.generation_passes, samples=args.samples))
+    print(rule)
+    _print_lines(
+        workload_chart(
+            prompts=BENCHMARK_PROMPTS,
+            always_sc_passes=BENCHMARK_ALWAYS_SC_PASSES,
+            siftsc_passes=BENCHMARK_SIFTSC_PASSES,
+            accuracy_retention=BENCHMARK_ACCURACY_RETENTION,
+            width=width,
+        )
+    )
+    print(rule)
+    if reproduced:
+        print("✅ Reproduced: repair when voting helps; skip when voting hurts.")
+    else:
+        print("⚠️  The fixed showcase did not reproduce exactly on this machine.")
+        print("   Expected: plain 15 → siftsc 25, and plain 109 kept while a blind vote loses it.")
+        print("   Check the pinned model revision and mlx-lm version; you can still chat below.")
+
+
+def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "profiles":
         print("\n".join(list_profiles()))
         return 0
@@ -456,6 +780,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "demo":
         return _run_demo(args)
     raise AssertionError(f"unhandled command: {args.command}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        return _dispatch(args)
+    except KeyboardInterrupt:
+        print("\n👋 Interrupted · bye!", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

@@ -68,3 +68,24 @@ def test_router_rejects_empty_prompt() -> None:
     runner = SiftSC(FakeBackend(["4"], ((1.0, 0.0),)), ConfidenceGate(0.5))
     with pytest.raises(ValueError, match="must not be empty"):
         runner("  ")
+
+
+def test_sample_traces_uses_the_same_voter_seeds_as_escalation() -> None:
+    seeds: list[int] = []
+
+    class SeedRecorder(FakeBackend):
+        def generate(self, prompt: str, **kwargs: object) -> Generation:  # type: ignore[override]
+            seeds.append(int(kwargs["seed"]))  # type: ignore[call-overload]
+            return super().generate(prompt, **kwargs)  # type: ignore[arg-type]
+
+    backend = SeedRecorder(["4", "5", "5", "5", "4", "5"] + ["5"] * 5, ((0.0, 0.0),))
+    runner = SiftSC(backend, ConfidenceGate(threshold=0.5), samples=5, seed=1)
+    runner("2 + 2?")
+    escalation_seeds = seeds[1:]
+    seeds.clear()
+
+    traces = runner.sample_traces("2 + 2?")
+
+    assert len(traces) == 5
+    assert seeds == escalation_seeds == [10001, 10002, 10003, 10004, 10005]
+    assert backend.calls[-5:] == [False] * 5
