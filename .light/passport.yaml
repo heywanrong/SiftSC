@@ -66,6 +66,12 @@ stages:
       - README.md
       - docs/assets/logo.png
     evidence: cartoon mascot moved beside the wordmark; Apple-Silicon limitation is disclosed above the fold; badges and cards clarify install, modes, benefits, and method
+  - name: private_install_resilience
+    status: PASS
+    artifacts:
+      - README.md
+      - tests/test_release_assets.py
+    evidence: exact GitHub install succeeded in a clean Python 3.13 environment; demo reproduced both reference cases; README distinguishes port-443 connectivity, private-repo authentication, and local-clone fallback
 known_limitations:
   - one generation seed per experiment cell
   - thresholds selected and evaluated on the same out-of-fold score pool

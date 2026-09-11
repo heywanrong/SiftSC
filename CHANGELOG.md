@@ -13,6 +13,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - A product-first README focused on one compute result and one quality result.
 - A compact, friendly cartoon mascot for the project identity.
 - Platform and onboarding badges that expose the Apple-Silicon requirement before installation.
+- Private-preview connectivity, authentication, and local-clone installation guidance.
 
 ### Changed
 
@@ -21,6 +22,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - README navigation and section hierarchy now use restrained emoji cues for faster scanning.
 - Replaced the funnel logo with the friendly Sifty mascot and moved it beside the wordmark.
 - Reworked the opening, quick start, and method explanation into compact visual cards.
+- The primary Git install command now upgrades an existing preview installation in place.
 
 ## [0.1.0] - 2026-09-11
 

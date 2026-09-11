@@ -52,8 +52,34 @@ Self-consistency can help a small model—but running it on every prompt spends 
 On an Apple-Silicon Mac with Python 3.11+, this single command installs SiftSC, downloads the tested public 4-bit model, and runs the complete comparison:
 
 ```bash
-python -m pip install "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
+python -m pip install --upgrade "siftsc[mlx] @ git+https://github.com/heywanrong/SiftSC.git" && siftsc demo
 ```
+
+> [!NOTE]
+> **Private-preview requirement:** until this repository is made public, GitHub must be reachable and your Git client must be authenticated as a collaborator. This requirement disappears for the public release.
+
+<details>
+<summary><strong>🧯 Seeing “Failed to connect to github.com port 443”?</strong></summary>
+
+That message is raised by `git clone` before SiftSC or its build process starts. Verify GitHub connectivity and private-repository access:
+
+```bash
+curl -I https://github.com
+gh auth status
+gh auth setup-git
+git ls-remote https://github.com/heywanrong/SiftSC.git HEAD
+```
+
+If `curl` cannot connect, restore the terminal's network/VPN/proxy access and retry. If `git ls-remote` prints a commit hash, the original installation command is ready to run again.
+
+Already have a local clone? Bypass GitHub completely:
+
+```bash
+cd /path/to/SiftSC
+python -m pip install --upgrade '.[mlx]' && siftsc demo
+```
+
+</details>
 
 <table>
   <tr>
