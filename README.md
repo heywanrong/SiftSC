@@ -1,8 +1,7 @@
 <div align="center">
 
 <h1>
-  <img src="docs/assets/logo.png" alt="Sifty, the winking SiftSC mascot" width="92" align="absmiddle">
-  &nbsp;SiftSC
+  <img src="docs/assets/wordmark.png" alt="SiftSC — Sifty mascot and project wordmark" width="420">
 </h1>
 
 ### Think once. Vote only when it helps.
