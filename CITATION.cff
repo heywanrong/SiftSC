@@ -4,7 +4,7 @@ title: "SiftSC: Selective Self-Consistency for Small Language Models"
 type: software
 version: 0.3.0
 date-released: 2026-09-11
-license: Apache-2.0
+license: MIT
 repository-code: "https://github.com/heywanrong/SiftSC"
 authors:
   - family-names: Yang

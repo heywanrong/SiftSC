@@ -6,6 +6,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 
+- License changed from Apache-2.0 to MIT (2026-09-12); the mascot and wordmark were unified.
 - The repository is public. README install text no longer mentions collaborator authentication, and the one-line installer is the primary path.
 
 ### Fixed

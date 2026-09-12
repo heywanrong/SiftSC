@@ -15,7 +15,7 @@ The terminal experience was reviewed in a real pseudo-terminal at 80 columns, in
 - Project root: `~/Documents/ChatGPT/硅基线程/SiftSC`
 - Remote: `https://github.com/heywanrong/SiftSC` (**PUBLIC** since 2026-09-11 at the maintainer's request; every push is visible)
 - Default branch: `main`
-- Package version is `0.3.0`. pip does **not** reinstall a Git direct-URL requirement whose version is unchanged, so every user-visible release needs a version bump; `siftsc --version` shows the installed one.
+- Package version is `0.3.0`. License is MIT since 2026-09-12 (was Apache-2.0). pip does **not** reinstall a Git direct-URL requirement whose version is unchanged, so every user-visible release needs a version bump; `siftsc --version` shows the installed one.
 - Design note for this session: `.light/design/2026-09-11-cli-chat-experience.md`
 
 ## What changed in S09

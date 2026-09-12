@@ -11,7 +11,7 @@ No API key · No fine-tuning · No cloud inference
 
 <a href="https://github.com/heywanrong/SiftSC/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/heywanrong/SiftSC/ci.yml?branch=main&style=flat-square&label=CI"></a>
 <a href="https://www.python.org/"><img alt="Python 3.11 or newer" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white"></a>
-<a href="LICENSE"><img alt="Apache 2.0 license" src="https://img.shields.io/badge/License-Apache_2.0-7c3aed?style=flat-square"></a>
+<a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/License-MIT-7c3aed?style=flat-square"></a>
 
 <br>
 
@@ -249,4 +249,4 @@ ruff check . && mypy src/siftsc && pytest
 }
 ```
 
-Apache-2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
