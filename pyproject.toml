@@ -25,7 +25,7 @@ classifiers = [
 dependencies = ["numpy>=1.26"]
 
 [project.optional-dependencies]
-mlx = ["mlx-lm>=0.31.3,<0.32; sys_platform == 'darwin'", "textual>=1.0"]
+mlx = ["mlx-lm>=0.31.3,<0.33; sys_platform == 'darwin'", "textual>=1.0"]
 ui = ["textual>=1.0"]
 calibrate = ["scikit-learn>=1.4"]
 dev = [
